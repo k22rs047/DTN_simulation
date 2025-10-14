@@ -188,7 +188,7 @@ to forward-messages
               set delivered-list lput msg-id delivered-list
               set arrived-count arrived-count + 1
               set color red
-                
+
               show (word "--------" ticks " ticks-------------")
               show (word "Message arrived")
               show (word  "msg-id=" msg-id
@@ -225,7 +225,7 @@ to forward-messages
 
             ;送信側のリストに追加
             ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
-   
+
           ]
         ]
 
@@ -387,13 +387,12 @@ to update-transitivity [a b]
     ]
   ]
 end
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 274
 16
-583
-326
+683
+426
 -1
 -1
 1.0
@@ -406,10 +405,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--150
-150
--150
-150
+-200
+200
+-200
+200
 0
 0
 1
@@ -459,7 +458,7 @@ num-nodes
 num-nodes
 10
 100
-15.0
+59.0
 1
 1
 NIL
