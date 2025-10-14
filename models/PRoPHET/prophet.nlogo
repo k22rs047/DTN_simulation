@@ -1,4 +1,4 @@
-extensions [table csv]  ;拡張機能
+extensions [table]  ;拡張機能
 
 ;大域変数
 globals [
