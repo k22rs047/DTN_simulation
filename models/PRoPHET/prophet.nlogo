@@ -180,13 +180,44 @@ to forward-messages
         let sender-p (get-p ([p-table] of sender) dst-id)  ;送信者側の宛先までの到達確率
         let receiver-p (get-p ([p-table] of receiver) dst-id) ;受信者側の宛先までの到達確率
 
-        ifelse ([node-id] of receiver = dst-id) and ok-forward-msg? [
-          if not member? msg-id ([delivered-list] of receiver) [
+        if (sender-p < receiver-p) and ok-forward-msg? [
+          if (not member? (list msg-id ([node-id] of receiver)) ([forwarded-list] of sender)) and (empty? filter [m -> item 0 m = msg-id] ([buffer] of receiver))[
 
-            ;受信側のリストに追加
-            set delivered-list lput msg-id delivered-list
+            ifelse ([node-id] of receiver) = dst-id [
+              ;受信側のリストに追加
+              set delivered-list lput msg-id delivered-list
+              set arrived-count arrived-count + 1
+              set color red
+                
+              show (word "--------" ticks " ticks-------------")
+              show (word "Message arrived")
+              show (word  "msg-id=" msg-id
+                      " ttl=" item 3 send-msg
+                      " from=" [node-id] of myself
+                      " to=" node-id)
+              show (word "buffer: " buffer)
+              show (word "delivered:" delivered-list)
 
-            set arrived-count arrived-count + 1
+              log-event src-id dst-id msg-id ttl ([node-id] of sender) node-id sender-p receiver-p "ARRIVED"
+
+              if arrived-count = 4 [
+                stop-simulation
+              ]
+            ] [
+              set buffer lput send-msg buffer
+              set color green
+
+              show (word "--------" ticks " ticks-------------")
+              show (word "msg-id=" msg-id
+                        " ttl=" item 3 send-msg
+                        " from=" [node-id] of myself
+                        " to=" node-id
+                        " sender-p=" sender-p
+                        " receiver-p=" receiver-p)
+              show (word "buffer: " buffer)
+
+              log-event src-id dst-id msg-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
+            ]
 
             let m-count get-trust trust-table ([node-id] of sender)
             set m-count m-count + 1
@@ -194,51 +225,8 @@ to forward-messages
 
             ;送信側のリストに追加
             ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
-
-            set color red
-            show (word "--------" ticks " ticks-------------")
-            show (word "Message arrived")
-            show (word  "msg-id=" msg-id
-                        " ttl=" item 3 send-msg
-                        " from=" [node-id] of myself
-                        " to=" node-id)
-            show (word "buffer: " buffer)
-            show (word "delivered:" delivered-list)
-
-            log-event src-id dst-id msg-id ttl ([node-id] of sender) node-id sender-p receiver-p "ARRIVED"
-            if arrived-count = 4 [
-              stop-simulation
-            ]
-
+   
           ]
-        ] [
-          if (sender-p < receiver-p) and ok-forward-msg? [
-            if (not member? (list msg-id ([node-id] of receiver)) ([forwarded-list] of sender)) and (empty? filter [m -> item 0 m = msg-id] ([buffer] of receiver))[
-              
-              set buffer lput send-msg buffer
-              set color green
-
-              let m-count get-trust trust-table ([node-id] of sender)
-              set m-count m-count + 1
-              set-trust trust-table ([node-id] of sender) m-count
-
-
-              ;送信側のリストに追加
-              ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
-
-              log-event src-id dst-id msg-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
-
-              show (word "--------" ticks " ticks-------------")
-              show (word "msg-id=" msg-id
-                         " ttl=" item 3 send-msg
-                         " from=" [node-id] of myself
-                         " to=" node-id
-                         " sender-p=" sender-p
-                         " receiver-p=" receiver-p)
-              show (word "buffer: " buffer)
-            ]
-          ]
-
         ]
 
       ]
