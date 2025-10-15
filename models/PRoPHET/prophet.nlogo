@@ -184,26 +184,30 @@ to forward-messages
           if (not member? (list msg-id ([node-id] of receiver)) ([forwarded-list] of sender)) and (empty? filter [m -> item 0 m = msg-id] ([buffer] of receiver))[
 
             ifelse ([node-id] of receiver) = dst-id [
-              ;受信側のリストに追加
-              set delivered-list lput msg-id delivered-list
-              set arrived-count arrived-count + 1
-              set color red
+              if not member? msg-id ([delivered-list] of receiver) [
+                ;受信側のリストに追加
+                set delivered-list lput msg-id delivered-list
+                set arrived-count arrived-count + 1
+                set color red
 
-              show (word "--------" ticks " ticks-------------")
-              show (word "Message arrived")
-              show (word  "msg-id=" msg-id
+                show (word "--------" ticks " ticks-------------")
+                show (word "Message arrived")
+                show (word  "msg-id=" msg-id
                       " ttl=" item 3 send-msg
                       " from=" [node-id] of myself
                       " to=" node-id)
-              show (word "buffer: " buffer)
-              show (word "delivered:" delivered-list)
+                show (word "buffer: " buffer)
+                show (word "delivered:" delivered-list)
+                log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "ARRIVED"
 
-              log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "ARRIVED"
+                if arrived-count = 4 [
+                  stop-simulation
+                ]
 
-              if arrived-count = 4 [
-                stop-simulation
               ]
+              
             ] [
+              ;bufferに追加する
               set buffer lput send-msg buffer
               set color green
 
@@ -257,9 +261,9 @@ to cleanup-buffer
 end
 
 ;ログの出力
-to log-event [src-id dst-id msg-id ttl sender receiver sender-p receiver-p event]
+to log-event [msg-id src-id dst-id ttl sender receiver sender-p receiver-p event]
   file-open filename
-  file-print (word ticks "," src-id "," dst-id "," msg-id "," ttl "," sender "," receiver "," sender-p "," receiver-p "," event)
+  file-print (word ticks "," msg-id "," src-id "," dst-id "," ttl "," sender "," receiver "," sender-p "," receiver-p "," event)
 end
 
 to cleanup-forwarded-list [a b]
