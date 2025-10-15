@@ -7,7 +7,7 @@ globals [
   BETA        ;推移性係数
   arrived-count ;到達したメッセージ数
 
-  filename    ;ログファイル名
+  log-file     ;ログファイル名
   ok-done?     ;停止フラグ
 ]
 
@@ -32,7 +32,7 @@ to init-globals
   set BETA 0.25
 
   set arrived-count 0
-  set filename "data/prophet_log.csv"
+  set log-file "data/prophet_log.csv"
   set ok-done? false
 end
 
@@ -105,12 +105,12 @@ end
 ;ログファイル初期化
 to init-log-file
   ;file-deleteが失敗する場合があるので、念のためfile-close
-  if file-exists? filename [
+  if file-exists? log-file [
     file-close
   ]
   ;ログファイルおよびヘッダの出力
-  file-delete filename
-  file-open filename
+  file-delete log-file
+  file-open log-file
   let header "ticks,msg-id,src-id,dst-id,ttl,sender,receiver,sender-p,receiver-p,event"
   file-print header
   file-close
@@ -241,7 +241,7 @@ to forward-messages
 end
 
 to stop-simulation
-  if file-exists? filename [
+  if file-exists? log-file [
     file-close
   ]
   
@@ -262,7 +262,7 @@ end
 
 ;ログの出力
 to log-event [msg-id src-id dst-id ttl sender receiver sender-p receiver-p event]
-  file-open filename
+  file-open log-file
   file-print (word ticks "," msg-id "," src-id "," dst-id "," ttl "," sender "," receiver "," sender-p "," receiver-p "," event)
 end
 
