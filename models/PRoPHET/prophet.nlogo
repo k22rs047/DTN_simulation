@@ -111,7 +111,7 @@ to init-log-file
   ;ログファイルおよびヘッダの出力
   file-delete filename
   file-open filename
-  let header "ticks,src-id,dst-id,msg-id,ttl,sender,receiver,sender-p,receiver-p,event"
+  let header "ticks,msg-id,src-id,dst-id,ttl,sender,receiver,sender-p,receiver-p,event"
   file-print header
   file-close
 end
@@ -198,7 +198,7 @@ to forward-messages
               show (word "buffer: " buffer)
               show (word "delivered:" delivered-list)
 
-              log-event src-id dst-id msg-id ttl ([node-id] of sender) node-id sender-p receiver-p "ARRIVED"
+              log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "ARRIVED"
 
               if arrived-count = 4 [
                 stop-simulation
@@ -216,7 +216,7 @@ to forward-messages
                         " receiver-p=" receiver-p)
               show (word "buffer: " buffer)
 
-              log-event src-id dst-id msg-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
+              log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
             ]
 
             let m-count get-trust trust-table ([node-id] of sender)
