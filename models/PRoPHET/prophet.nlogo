@@ -1,4 +1,4 @@
-extensions [table csv]  ;拡張機能
+extensions [table]  ;拡張機能
 
 ;大域変数
 globals [
@@ -111,7 +111,7 @@ to init-log-file
   ;ログファイルおよびヘッダの出力
   file-delete filename
   file-open filename
-  let header "ticks,src-id,dst-id,msg-id,ttl,sender,receiver,sender-p,receiver-p,event"
+  let header "ticks,msg-id,src-id,dst-id,ttl,sender,receiver,sender-p,receiver-p,event"
   file-print header
   file-close
 end
@@ -180,13 +180,48 @@ to forward-messages
         let sender-p (get-p ([p-table] of sender) dst-id)  ;送信者側の宛先までの到達確率
         let receiver-p (get-p ([p-table] of receiver) dst-id) ;受信者側の宛先までの到達確率
 
-        ifelse ([node-id] of receiver = dst-id) and ok-forward-msg? [
-          if not member? msg-id ([delivered-list] of receiver) [
+        if (sender-p < receiver-p) and ok-forward-msg? [
+          if (not member? (list msg-id ([node-id] of receiver)) ([forwarded-list] of sender)) and (empty? filter [m -> item 0 m = msg-id] ([buffer] of receiver))[
 
-            ;受信側のリストに追加
-            set delivered-list lput msg-id delivered-list
+            ifelse ([node-id] of receiver) = dst-id [
+              if not member? msg-id ([delivered-list] of receiver) [
+                ;受信側のリストに追加
+                set delivered-list lput msg-id delivered-list
+                set arrived-count arrived-count + 1
+                set color red
 
-            set arrived-count arrived-count + 1
+                show (word "--------" ticks " ticks-------------")
+                show (word "Message arrived")
+                show (word  "msg-id=" msg-id
+                      " ttl=" item 3 send-msg
+                      " from=" [node-id] of myself
+                      " to=" node-id)
+                show (word "buffer: " buffer)
+                show (word "delivered:" delivered-list)
+                log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "ARRIVED"
+
+                if arrived-count = 4 [
+                  stop-simulation
+                ]
+
+              ]
+              
+            ] [
+              ;bufferに追加する
+              set buffer lput send-msg buffer
+              set color green
+
+              show (word "--------" ticks " ticks-------------")
+              show (word "msg-id=" msg-id
+                        " ttl=" item 3 send-msg
+                        " from=" [node-id] of myself
+                        " to=" node-id
+                        " sender-p=" sender-p
+                        " receiver-p=" receiver-p)
+              show (word "buffer: " buffer)
+
+              log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
+            ]
 
             let m-count get-trust trust-table ([node-id] of sender)
             set m-count m-count + 1
@@ -195,50 +230,7 @@ to forward-messages
             ;送信側のリストに追加
             ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
 
-            set color red
-            show (word "--------" ticks " ticks-------------")
-            show (word "Message arrived")
-            show (word  "msg-id=" msg-id
-                        " ttl=" item 3 send-msg
-                        " from=" [node-id] of myself
-                        " to=" node-id)
-            show (word "buffer: " buffer)
-            show (word "delivered:" delivered-list)
-
-            log-event src-id dst-id msg-id ttl ([node-id] of sender) node-id sender-p receiver-p "ARRIVED"
-            if arrived-count = 4 [
-              stop-simulation
-            ]
-
           ]
-        ] [
-          if (sender-p < receiver-p) and ok-forward-msg? [
-            if (not member? (list msg-id ([node-id] of receiver)) ([forwarded-list] of sender)) and (empty? filter [m -> item 0 m = msg-id] ([buffer] of receiver))[
-              
-              set buffer lput send-msg buffer
-              set color green
-
-              let m-count get-trust trust-table ([node-id] of sender)
-              set m-count m-count + 1
-              set-trust trust-table ([node-id] of sender) m-count
-
-
-              ;送信側のリストに追加
-              ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
-
-              log-event src-id dst-id msg-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
-
-              show (word "--------" ticks " ticks-------------")
-              show (word "msg-id=" msg-id
-                         " ttl=" item 3 send-msg
-                         " from=" [node-id] of myself
-                         " to=" node-id
-                         " sender-p=" sender-p
-                         " receiver-p=" receiver-p)
-              show (word "buffer: " buffer)
-            ]
-          ]
-
         ]
 
       ]
@@ -269,9 +261,9 @@ to cleanup-buffer
 end
 
 ;ログの出力
-to log-event [src-id dst-id msg-id ttl sender receiver sender-p receiver-p event]
+to log-event [msg-id src-id dst-id ttl sender receiver sender-p receiver-p event]
   file-open filename
-  file-print (word ticks "," src-id "," dst-id "," msg-id "," ttl "," sender "," receiver "," sender-p "," receiver-p "," event)
+  file-print (word ticks "," msg-id "," src-id "," dst-id "," ttl "," sender "," receiver "," sender-p "," receiver-p "," event)
 end
 
 to cleanup-forwarded-list [a b]
@@ -399,13 +391,12 @@ to update-transitivity [a b]
     ]
   ]
 end
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 274
 16
-583
-326
+683
+426
 -1
 -1
 1.0
@@ -418,10 +409,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--150
-150
--150
-150
+-200
+200
+-200
+200
 0
 0
 1
@@ -471,7 +462,7 @@ num-nodes
 num-nodes
 10
 100
-15.0
+59.0
 1
 1
 NIL
