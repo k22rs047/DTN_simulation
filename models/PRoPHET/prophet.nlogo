@@ -211,6 +211,9 @@ to forward-messages
               set buffer lput send-msg buffer
               set color green
 
+              ;送信側のリストに追加
+              ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
+
               show (word "--------" ticks " ticks-------------")
               show (word "msg-id=" msg-id
                         " ttl=" item 3 send-msg
@@ -226,9 +229,6 @@ to forward-messages
             let m-count get-trust trust-table ([node-id] of sender)
             set m-count m-count + 1
             set-trust trust-table ([node-id] of sender) m-count
-
-            ;送信側のリストに追加
-            ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
 
           ]
         ]
