@@ -343,12 +343,12 @@ to aging
     let keys table:keys p-table
 
     foreach keys [
-      dst-id ->
-      if dst-id != node-id [
-        let p-old (get-p p-table dst-id)
-        if not member? dst-id contacts [
+      key ->
+      if key != node-id [
+        let p-old (get-p p-table key)
+        if not member? key contacts [
           let p-new p-old * GAMMA
-          table:put p-table dst-id p-new
+          table:put p-table key p-new
         ]
       ]
 
@@ -356,7 +356,8 @@ to aging
   ]
 end
 
-;相手が宛先ノードの到達確率を持っている場合適用
+;リンク形成時に適用
+;直接会ったことのないノード間の到達確率の更新
 ;P(A,C) = P(A,C)old + (1 − P(A,C)old) ∗ P(A,B) ∗ P(B,C) ∗ β
 to update-transitivity [a b]
   ask a [
@@ -364,13 +365,13 @@ to update-transitivity [a b]
     let keys table:keys ([p-table] of b)
 
     foreach keys [
-      dst-id ->
-      if dst-id != node-id and dst-id != [node-id] of b [
-        let p-ac (get-p p-table dst-id)
-        let p-bc (get-p ([p-table] of b) dst-id)
+      key ->
+      if key != node-id and key != [node-id] of b [
+        let p-ac (get-p p-table key)
+        let p-bc (get-p ([p-table] of b) key)
         let p-new p-ac + (1 - p-ac) * p-ab * p-bc * BETA
         if p-new > 1 [ set p-new 1 ]
-        set-p p-table dst-id p-new
+        set-p p-table key p-new
       ]
     ]
 
@@ -380,13 +381,13 @@ to update-transitivity [a b]
     let p-ba (get-p p-table [node-id] of a)
     let keys table:keys ([p-table] of a)
     foreach keys [
-      dst-id ->
-      if dst-id != node-id and dst-id != [node-id] of a [
-        let p-bc (get-p p-table dst-id)
-        let p-ac (get-p ([p-table] of a) dst-id)
+      key ->
+      if key != node-id and key != [node-id] of a [
+        let p-bc (get-p p-table key)
+        let p-ac (get-p ([p-table] of a) key)
         let p-new p-bc + (1 - p-bc) * p-ba * p-ac * BETA
         if p-new > 1 [ set p-new 1 ]
-        set-p p-table dst-id p-new
+        set-p p-table key p-new
       ]
     ]
   ]
