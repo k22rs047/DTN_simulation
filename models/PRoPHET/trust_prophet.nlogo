@@ -65,7 +65,7 @@ to setup-nodes
     set node-id who
     set msg-cnt 0
     set p-table table:make
-    table:put p-table node-id 1.0  ;自分自身への到達確率は1.0
+    table:put p-table node-id 1.0  ;自分自身への到達確率を1.0に設定
     set trust-table table:make
     set buffer []
     set l-buffer LIMIT-BUFFER
@@ -80,7 +80,7 @@ end
 
 ;メッセージの生成
 to setup-messages
-  ask one-of turtles [
+  ask n-of messages turtles [
     set msg-cnt msg-cnt + 1
     let msg-id (word node-id "-" msg-cnt)
     let src-id node-id
@@ -203,6 +203,10 @@ to forward-messages
                 show (word "buffer: " buffer)
                 show (word "delivered:" delivered-list)
                 log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "ARRIVED"
+
+                if arrived-count >= messages [
+                  stop-simulation
+                ]
 
               ]
 
@@ -397,8 +401,8 @@ end
 GRAPHICS-WINDOW
 274
 16
-483
-226
+583
+326
 -1
 -1
 1.0
@@ -411,10 +415,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--100
-100
--100
-100
+-150
+150
+-150
+150
 0
 0
 1
@@ -422,10 +426,10 @@ ticks
 30.0
 
 BUTTON
-59
-270
-123
-303
+68
+370
+132
+403
 NIL
 setup
 NIL
@@ -439,10 +443,10 @@ NIL
 1
 
 BUTTON
-164
-272
-227
-305
+173
+372
+236
+405
 NIL
 go
 T
@@ -479,7 +483,7 @@ comm-range
 comm-range
 1
 100
-31.0
+40.0
 1
 1
 NIL
@@ -494,7 +498,7 @@ ttl-hops
 ttl-hops
 0
 100
-5.0
+15.0
 1
 1
 NIL
@@ -509,22 +513,37 @@ limit-buffer
 limit-buffer
 3
 100
-9.0
+8.0
 1
 1
 NIL
 HORIZONTAL
 
 MONITOR
-94
-211
-192
-256
+100
+268
+198
+313
 到達したメッセージ
 arrived-count
 17
 1
 11
+
+SLIDER
+59
+212
+231
+245
+messages
+messages
+1
+50
+1.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
