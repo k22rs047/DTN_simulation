@@ -2,4 +2,6 @@
 /models/Spray_and_Wait
 /models/PRoPHET/data
 /models/PRoPHET/.prophet.tmp.nlogo
+/models/PRoPHET/.trust_prophet.tmp.nlogo
+/models/PRoPHET/temp_prophet.nlogo
 /models/Epidemic/.epidemic.tmp.nlogo
