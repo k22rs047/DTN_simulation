@@ -211,29 +211,55 @@ to forward-messages
               ]
 
             ] [
-              ;bufferに追加する
-              set buffer lput send-msg buffer
-              set color green
 
-              let m-count get-trust trust-table ([node-id] of sender)
-              set m-count m-count + 1
-              set-trust trust-table ([node-id] of sender) m-count
+              let receiver-trust get-trust ([trust-table] of receiver) ([node-id] of sender)
 
-              ;送信側の転送済みリストに追加
-              ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
+              ifelse receiver-trust >= 1 [
+                ;bufferに追加する
+                set buffer lput send-msg buffer
+                set color green
 
-              show (word "--------" ticks " ticks-------------")
-              show (word "msg-id=" msg-id
+                let m-count get-trust trust-table ([node-id] of sender)
+                set m-count m-count + 1
+                set-trust trust-table ([node-id] of sender) m-count
+
+                ;送信側の転送済みリストに追加
+                ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
+                show (word "--------" ticks " ticks-------------")
+                show (word "msg-id=" msg-id
                         " ttl=" item 3 send-msg
                         " from=" [node-id] of myself
                         " to=" node-id
                         " sender-p=" sender-p
                         " receiver-p=" receiver-p)
-              show (word "buffer: " buffer)
+                show (word "buffer: " buffer)
+                log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
+              ] [
+                if (sender-p * (1 + ikiti / 100)) < receiver-p [
+                  ;bufferに追加する
+                  set buffer lput send-msg buffer
+                  set color green
 
-              log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
+                  let m-count get-trust trust-table ([node-id] of sender)
+                  set m-count m-count + 1
+                  set-trust trust-table ([node-id] of sender) m-count
+
+                  ;送信側の転送済みリストに追加
+                  ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
+
+                  show (word "--------" ticks " ticks-------------")
+                  show (word "msg-id=" msg-id
+                        " ttl=" item 3 send-msg
+                        " from=" [node-id] of myself
+                        " to=" node-id
+                        " sender-p=" sender-p
+                        " receiver-p=" receiver-p)
+                  show (word "buffer: " buffer)
+                  log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
+                ]
+              ]
+
             ]
-
 
 
           ]
@@ -399,10 +425,10 @@ to update-transitivity [a b]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-274
-16
-583
-326
+271
+20
+1280
+1030
 -1
 -1
 1.0
@@ -415,10 +441,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--150
-150
--150
-150
+-500
+500
+-500
+500
 0
 0
 1
@@ -426,10 +452,10 @@ ticks
 30.0
 
 BUTTON
-68
-370
-132
-403
+60
+414
+124
+447
 NIL
 setup
 NIL
@@ -443,10 +469,10 @@ NIL
 1
 
 BUTTON
-173
-372
-236
-405
+165
+416
+228
+449
 NIL
 go
 T
@@ -468,7 +494,7 @@ num-nodes
 num-nodes
 10
 100
-10.0
+50.0
 1
 1
 NIL
@@ -481,10 +507,10 @@ SLIDER
 55
 comm-range
 comm-range
-1
+10
 100
-40.0
-1
+55.0
+5
 1
 NIL
 HORIZONTAL
@@ -512,18 +538,18 @@ SLIDER
 limit-buffer
 limit-buffer
 3
-100
-8.0
+messages
+3.0
 1
 1
 NIL
 HORIZONTAL
 
 MONITOR
-100
-268
-198
-313
+92
+312
+190
+357
 到達したメッセージ
 arrived-count
 17
@@ -538,11 +564,26 @@ SLIDER
 messages
 messages
 1
-50
+num-nodes
 1.0
 1
 1
 NIL
+HORIZONTAL
+
+SLIDER
+61
+257
+233
+290
+ikiti
+ikiti
+0
+100
+30.0
+5
+1
+%
 HORIZONTAL
 
 @#$#@#$#@
