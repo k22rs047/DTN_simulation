@@ -7,8 +7,16 @@ globals [
   BETA        ;推移性係数
   arrived-count ;到達したメッセージ数
 
+  SHELTER-PATCH
   log-file     ;ログファイル名
   ok-done?     ;停止フラグ
+]
+
+;避難所のフィールド変数
+patches-own [
+  shelter?   ;避難所かどうか
+  capacity   ;避難所の収容人数
+  occupants  ;避難所の現在の人数
 ]
 
 ;ノードのフィールド変数
@@ -41,6 +49,7 @@ to setup
   clear-all
   init-globals
   setup-map
+  setup-shelter
 
   setup-nodes
   setup-messages
@@ -53,6 +62,24 @@ end
 to setup-map
   ;resize-world -500 500 -500 500
   set-patch-size 1 ;1パッチ = 1m
+end
+
+to setup-shelter
+  ask patches [
+    set shelter? false
+    set capacity 0
+    set occupants 0
+  ]
+
+  let one-patch one-of patches
+
+  ask one-patch [
+    set shelter? true
+    set capacity 100
+    set pcolor white
+  ]
+
+  set SHELTER-PATCH one-patch
 end
 
 ;ノードの初期化
@@ -427,8 +454,8 @@ end
 GRAPHICS-WINDOW
 271
 20
-1280
-1030
+580
+330
 -1
 -1
 1.0
@@ -441,10 +468,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--500
-500
--500
-500
+-150
+150
+-150
+150
 0
 0
 1
@@ -494,7 +521,7 @@ num-nodes
 num-nodes
 10
 100
-50.0
+20.0
 1
 1
 NIL
