@@ -8,6 +8,7 @@ globals [
   arrived-count ;到達したメッセージ数
 
   SHELTER-PATCH
+  SHELTER-RADIUS
   log-file     ;ログファイル名
   ok-done?     ;停止フラグ
 ]
@@ -38,6 +39,7 @@ to init-globals
   set P-INIT 0.80
   set GAMMA 0.99
   set BETA 0.25
+  set SHELTER-RADIUS 100
 
   set arrived-count 0
   set log-file "data/prophet_log.csv"
@@ -71,15 +73,18 @@ to setup-shelter
     set occupants 0
   ]
 
-  let one-patch one-of patches
+  let center-patch one-of patches
+  set SHELTER-PATCH center-patch
 
-  ask one-patch [
-    set shelter? true
-    set capacity 100
-    set pcolor white
+  ask patches [
+    if distance SHELTER-PATCH <= SHELTER-RADIUS [
+      set shelter? true
+      set capacity 100
+      set pcolor orange
+    ]
   ]
 
-  set SHELTER-PATCH one-patch
+  ask SHELTER-PATCH [ set pcolor white ]
 end
 
 ;ノードの初期化
@@ -336,19 +341,24 @@ end
 
 to move-nodes
   ask turtles [
-    rt random 50 - random 50
-    fd 1.0 + random-float 0.5  ; 1.0～1.5 m
-    if xcor > max-pxcor [
-      rt 180
-    ]
-    if xcor < min-pxcor [
-      rt 180
-    ]
-    if ycor > max-pycor [
-      rt 180
-    ]
-    if ycor < min-pycor [
-      rt 180
+    ifelse [shelter?] of patch-here [
+      rt random 50 - random 50
+
+      fd 1.0 + random-float 0.5
+
+      if not[shelter?] of patch-here [
+        bk 1.0 + random-float 0.5
+        face SHELTER-PATCH
+        rt random 20 - random 10
+      ]
+    ] [
+      face SHELTER-PATCH
+      fd 1.0 + random-float 0.5
+
+      if xcor > max-pxcor [ rt 180 ]
+      if xcor < min-pxcor [ rt 180 ]
+      if ycor > max-pycor [ rt 180 ]
+      if ycor < min-pycor [ rt 180 ]
     ]
   ]
 end
@@ -454,8 +464,8 @@ end
 GRAPHICS-WINDOW
 271
 20
-580
-330
+1280
+1030
 -1
 -1
 1.0
@@ -468,10 +478,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--150
-150
--150
-150
+-500
+500
+-500
+500
 0
 0
 1
