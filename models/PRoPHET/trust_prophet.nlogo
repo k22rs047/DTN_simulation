@@ -31,7 +31,7 @@ turtles-own [
   delivered-list ;宛先として受け取ったmsg-id
   forwarded-list ;転送処理をした情報を保持[[msg-id, node-id]...]
 
-  black-hole? ;ブラックホールノードかどうか
+  blackhole? ;ブラックホールノードかどうか
 ]
 
 ;グローバル変数の初期化
@@ -54,6 +54,7 @@ to setup
   setup-shelter
 
   setup-nodes
+  setup-black-hole
   setup-messages
 
   init-log-file
@@ -104,7 +105,7 @@ to setup-nodes
     set delivered-list []
     set forwarded-list []
 
-    set black-hole? false
+    set blackhole? false
     set label node-id
     set label-color white
   ]
@@ -112,11 +113,13 @@ end
 
 ;メッセージの生成
 to setup-messages
-  ask n-of messages turtles [
+  let no-blackholes turtles with [not blackhole?]
+
+  ask n-of messages no-blackholes [
     set msg-cnt msg-cnt + 1
     let msg-id (word node-id "-" msg-cnt)
     let src-id node-id
-    let dst-id [node-id] of one-of other turtles
+    let dst-id [node-id] of one-of other no-blackholes
     let ttl TTL-HOPS
     ask turtle dst-id [ set color yellow]
     set buffer lput (list msg-id src-id dst-id ttl) buffer
@@ -128,9 +131,10 @@ end
 
 ;ブラックホールノードの設定
 to setup-black-hole
-  ask n-of 1 turtles [
-    set black-hole? true
-    set shape "triangle"
+  let blackhole-num round (num-nodes * (blackhole-p / 100))
+  ask n-of blackhole-num turtles [
+    set blackhole? true
+    set color gray
   ]
 end
 
@@ -188,8 +192,10 @@ end
 
 ;転送処理
 to forward-messages
+  ;blackholeではないノード
+  let not-blackholes turtles with [not blackhole?]
   ;各ノード（送信側）をループ
-  ask turtles [
+  ask not-blackholes [
     let sender self
 
     ;送信側bufferをループ
@@ -247,13 +253,18 @@ to forward-messages
               let receiver-trust get-trust ([trust-table] of receiver) ([node-id] of sender)
 
               ifelse receiver-trust >= 1 [
-                ;bufferに追加する
-                set buffer lput send-msg buffer
-                set color green
 
-                let m-count get-trust trust-table ([node-id] of sender)
-                set m-count m-count + 1
-                set-trust trust-table ([node-id] of sender) m-count
+                if not [blackhole?] of receiver [
+                  ;bufferに追加する
+                  set buffer lput send-msg buffer
+                  set color green
+
+                  let m-count get-trust trust-table ([node-id] of sender)
+                  set m-count m-count + 1
+                  set-trust trust-table ([node-id] of sender) m-count
+
+                  log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
+                ]
 
                 ;送信側の転送済みリストに追加
                 ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
@@ -265,16 +276,20 @@ to forward-messages
                         " sender-p=" sender-p
                         " receiver-p=" receiver-p)
                 show (word "buffer: " buffer)
-                log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
               ] [
                 if (sender-p * (1 + ikiti / 100)) < receiver-p [
-                  ;bufferに追加する
-                  set buffer lput send-msg buffer
-                  set color green
 
-                  let m-count get-trust trust-table ([node-id] of sender)
-                  set m-count m-count + 1
-                  set-trust trust-table ([node-id] of sender) m-count
+                  if not [blackhole?] of receiver [
+                    ;bufferに追加する
+                    set buffer lput send-msg buffer
+                    set color green
+
+                    let m-count get-trust trust-table ([node-id] of sender)
+                    set m-count m-count + 1
+                    set-trust trust-table ([node-id] of sender) m-count
+
+                    log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
+                  ]
 
                   ;送信側の転送済みリストに追加
                   ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
@@ -287,7 +302,7 @@ to forward-messages
                         " sender-p=" sender-p
                         " receiver-p=" receiver-p)
                   show (word "buffer: " buffer)
-                  log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
+
                 ]
               ]
 
@@ -464,8 +479,8 @@ end
 GRAPHICS-WINDOW
 271
 20
-1280
-1030
+580
+330
 -1
 -1
 1.0
@@ -478,10 +493,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--500
-500
--500
-500
+-150
+150
+-150
+150
 0
 0
 1
@@ -531,7 +546,7 @@ num-nodes
 num-nodes
 10
 100
-20.0
+19.0
 1
 1
 NIL
@@ -576,17 +591,17 @@ limit-buffer
 limit-buffer
 3
 messages
-3.0
+5.0
 1
 1
 NIL
 HORIZONTAL
 
 MONITOR
-92
-312
-190
-357
+297
+402
+395
+447
 到達したメッセージ
 arrived-count
 17
@@ -617,7 +632,22 @@ ikiti
 ikiti
 0
 100
-30.0
+40.0
+5
+1
+%
+HORIZONTAL
+
+SLIDER
+63
+305
+235
+338
+blackhole-p
+blackhole-p
+0
+70
+10.0
 5
 1
 %
