@@ -5,12 +5,13 @@ globals [
   P-INIT      ;初期予測値
   GAMMA       ;aging係数
   BETA        ;推移性係数
-  arrived-count ;到達したメッセージ数
 
-  SHELTER-PATCH
-  SHELTER-RADIUS
+  arrived-count ;到達したメッセージ数
+  shelter-patch ;避難所の中心
+  shelter-radius;避難所の範囲
+
   log-file     ;ログファイル名
-  ok-done?     ;停止フラグ
+  done?        ;停止フラグ
 ]
 
 ;避難所のフィールド変数
@@ -27,7 +28,6 @@ turtles-own [
   p-table  ;[[dst-id, p] ....]  Map{key,value}
   trust-table ;[[node-id, M-count] ...]  Map{key,value}  信頼度
   buffer  ;[[msg-id, src-id, dst-id, ttl] ...]
-  l-buffer;bufferの制限
   delivered-list ;宛先として受け取ったmsg-id
   forwarded-list ;転送処理をした情報を保持[[msg-id, node-id]...]
 
@@ -39,11 +39,11 @@ to init-globals
   set P-INIT 0.80
   set GAMMA 0.99
   set BETA 0.25
-  set SHELTER-RADIUS 100
+  set shelter-radius 100
 
   set arrived-count 0
   set log-file "data/prophet_log.csv"
-  set ok-done? false
+  set done? false
 end
 
 ;-------------初期化---------------
@@ -54,7 +54,7 @@ to setup
   setup-shelter
 
   setup-nodes
-  setup-black-hole
+  setup-blackholes
   setup-messages
 
   init-log-file
@@ -74,23 +74,22 @@ to setup-shelter
     set occupants 0
   ]
 
-  let center-patch one-of patches
-  set SHELTER-PATCH center-patch
+  set shelter-patch one-of patches
 
   ask patches [
-    if distance SHELTER-PATCH <= SHELTER-RADIUS [
+    if distance shelter-patch <= shelter-radius [
       set shelter? true
       set capacity 100
       set pcolor orange
     ]
   ]
 
-  ask SHELTER-PATCH [ set pcolor white ]
+  ask shelter-patch [ set pcolor white ]
 end
 
 ;ノードの初期化
 to setup-nodes
-  create-turtles NUM-NODES [
+  create-turtles num-nodes [
     set shape "circle"
     set color blue
     set size 10
@@ -101,7 +100,6 @@ to setup-nodes
     table:put p-table node-id 1.0  ;自分自身への到達確率を1.0に設定
     set trust-table table:make
     set buffer []
-    set l-buffer LIMIT-BUFFER
     set delivered-list []
     set forwarded-list []
 
@@ -111,28 +109,32 @@ to setup-nodes
   ]
 end
 
-;メッセージの生成
+;メッセージの生成（初期時）
 to setup-messages
-  let no-blackholes turtles with [not blackhole?]
+  ;ブラックホールノードではない集合
+  let not-blackholes turtles with [not blackhole?]
 
-  ask n-of messages no-blackholes [
+  ask n-of messages not-blackholes [
     set msg-cnt msg-cnt + 1
     let msg-id (word node-id "-" msg-cnt)
     let src-id node-id
-    let dst-id [node-id] of one-of other no-blackholes
-    let ttl TTL-HOPS
-    ask turtle dst-id [ set color yellow]
+    let dst-id [node-id] of one-of other not-blackholes
+    let ttl ttl-hops
+
+    ask turtle dst-id [ set color yellow ]
     set buffer lput (list msg-id src-id dst-id ttl) buffer
     set color brown
+
     show (word "Message generated " src-id " to " dst-id)
     show (word "Message TTL (hops)" ttl)
   ]
 end
 
 ;ブラックホールノードの設定
-to setup-black-hole
-  let blackhole-num round (num-nodes * (blackhole-p / 100))
-  ask n-of blackhole-num turtles [
+to setup-blackholes
+  let num-blackholes round (num-nodes * (blackhole-rate / 100))
+
+  ask n-of num-blackholes turtles [
     set blackhole? true
     set color gray
   ]
@@ -155,7 +157,7 @@ end
 ;----------------メインループ---------------
 to go
   ;show (word "--------" ticks "-------------")
-  if ok-done? [stop]
+  if done? [stop]
   move-nodes
   update-links
   forward-messages
@@ -168,7 +170,7 @@ end
 to update-links
   ;通信範囲外のリンクを削除
   ask links [
-    if link-length > COMM-RANGE [
+    if link-length > comm-range [
       cleanup-forwarded-list end1 end2
       die
     ]
@@ -176,7 +178,7 @@ to update-links
 
   ;通信範囲内のリンクを作成
   ask turtles [
-    let nearby other turtles in-radius COMM-RANGE
+    let nearby other turtles in-radius comm-range
     ask nearby [
       let a myself
       let b self
@@ -192,8 +194,9 @@ end
 
 ;転送処理
 to forward-messages
-  ;blackholeではないノード
+  ;ブラックホールノードではない集合
   let not-blackholes turtles with [not blackhole?]
+
   ;各ノード（送信側）をループ
   ask not-blackholes [
     let sender self
@@ -218,8 +221,11 @@ to forward-messages
         let sender-p (get-p ([p-table] of sender) dst-id)  ;送信者側の宛先までの到達確率
         let receiver-p (get-p ([p-table] of receiver) dst-id) ;受信者側の宛先までの到達確率
 
+        let is-not-forwarded (not member? (list msg-id ([node-id] of receiver)) ([forwarded-list] of sender))
+        let is-not-in-buffer (empty? filter [m -> item 0 m = msg-id] ([buffer] of receiver))
+
         if (sender-p < receiver-p) and ok-forward-msg? [
-          if (not member? (list msg-id ([node-id] of receiver)) ([forwarded-list] of sender)) and (empty? filter [m -> item 0 m = msg-id] ([buffer] of receiver))[
+          if is-not-forwarded and is-not-in-buffer [
 
             ifelse ([node-id] of receiver) = dst-id [
               if not member? msg-id ([delivered-list] of receiver) [
@@ -243,7 +249,7 @@ to forward-messages
                 log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "ARRIVED"
 
                 if arrived-count >= messages [
-                  stop-simulation
+                  ;stop-simulation
                 ]
 
               ]
@@ -268,6 +274,7 @@ to forward-messages
 
                 ;送信側の転送済みリストに追加
                 ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
+
                 show (word "--------" ticks " ticks-------------")
                 show (word "msg-id=" msg-id
                         " ttl=" item 3 send-msg
@@ -277,7 +284,7 @@ to forward-messages
                         " receiver-p=" receiver-p)
                 show (word "buffer: " buffer)
               ] [
-                if (sender-p * (1 + ikiti / 100)) < receiver-p [
+                if (sender-p * (1 + trust-thresh / 100)) < receiver-p [
 
                   if not [blackhole?] of receiver [
                     ;bufferに追加する
@@ -325,7 +332,7 @@ to stop-simulation
   ]
 
   ;シミュレーション停止
-  set ok-done? true
+  set done? true
 end
 
 to cleanup-buffer
@@ -333,7 +340,7 @@ to cleanup-buffer
     ;TTL=0の削除
     set buffer filter [msg -> item 3 msg > 0] buffer
     ;FIFOの制限
-    while [length buffer > l-buffer] [
+    while [length buffer > buffer-limit] [
       set buffer remove-item 0 buffer
     ]
   ]
@@ -363,11 +370,11 @@ to move-nodes
 
       if not[shelter?] of patch-here [
         bk 1.0 + random-float 0.5
-        face SHELTER-PATCH
+        face shelter-patch
         rt random 20 - random 10
       ]
     ] [
-      face SHELTER-PATCH
+      face shelter-patch
       fd 1.0 + random-float 0.5
 
       if xcor > max-pxcor [ rt 180 ]
@@ -418,7 +425,7 @@ to update-encounter[a b]
   ]
 end
 
-;リンクが形成されていないノードに適用
+;リンクが形成されていないノードのみに適用
 ;P(A,B) = P(A,B)old ∗ (γ＾k)
 ;k＝1 (1tick)
 to aging
@@ -440,7 +447,6 @@ to aging
   ]
 end
 
-;相手が宛先ノードの到達確率を持っている場合適用
 ;P(A,C) = P(A,C)old + (1 − P(A,C)old) ∗ P(A,B) ∗ P(B,C) ∗ β
 to update-transitivity [a b]
   ask a [
@@ -546,7 +552,7 @@ num-nodes
 num-nodes
 10
 100
-19.0
+20.0
 1
 1
 NIL
@@ -587,11 +593,11 @@ SLIDER
 164
 232
 197
-limit-buffer
-limit-buffer
-3
+buffer-limit
+buffer-limit
+1
 messages
-5.0
+1.0
 1
 1
 NIL
@@ -628,8 +634,8 @@ SLIDER
 257
 233
 290
-ikiti
-ikiti
+trust-thresh
+trust-thresh
 0
 100
 40.0
@@ -643,8 +649,8 @@ SLIDER
 305
 235
 338
-blackhole-p
-blackhole-p
+blackhole-rate
+blackhole-rate
 0
 70
 10.0
