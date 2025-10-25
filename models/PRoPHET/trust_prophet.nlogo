@@ -23,15 +23,15 @@ patches-own [
 
 ;ノードのフィールド変数
 turtles-own [
-  node-id ;インスタンスの番号
-  msg-cnt ;生成したメッセージの数
-  p-table  ;[[dst-id, p] ....]  Map{key,value}
-  trust-table ;[[node-id, M-count] ...]  Map{key,value}  信頼度
-  buffer  ;[[msg-id, src-id, dst-id, ttl] ...]
+  node-id        ;インスタンスの番号
+  msg-cnt        ;生成したメッセージの数
+  p-table        ;[[dst-id, p] ....]  Map{key,value}(連想配列)
+  trust-table    ;[[node-id, M-count] ...]  Map{key,value}(連想配列)
+  buffer         ;[[msg-id, src-id, dst-id, ttl] ...]
   delivered-list ;宛先として受け取ったmsg-id
   forwarded-list ;転送処理をした情報を保持[[msg-id, node-id]...]
 
-  blackhole? ;ブラックホールノードかどうか
+  blackhole?     ;ブラックホールノードかどうか
 ]
 
 ;グローバル変数の初期化
