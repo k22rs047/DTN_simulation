@@ -18,7 +18,6 @@ globals [
 patches-own [
   shelter?   ;避難所かどうか
   capacity   ;避難所の収容人数
-  occupants  ;避難所の現在の人数
 ]
 
 ;ノードのフィールド変数
@@ -30,6 +29,7 @@ turtles-own [
   buffer         ;[[msg-id, src-id, dst-id, ttl] ...]
   delivered-list ;宛先として受け取ったmsg-id
   forwarded-list ;転送処理をした情報を保持[[msg-id, node-id]...]
+  evacuee?       ;避難者かどうか
 
   blackhole?     ;ブラックホールノードかどうか
 ]
@@ -71,7 +71,6 @@ to setup-shelter
   ask patches [
     set shelter? false
     set capacity 0
-    set occupants 0
   ]
 
   set shelter-patch one-of patches
@@ -102,11 +101,16 @@ to setup-nodes
     set buffer []
     set delivered-list []
     set forwarded-list []
+    set evacuee? false
 
     set blackhole? false
     set label node-id
     set label-color white
   ]
+
+  let num-evacuees round (num-nodes * (evacuee-rate / 100))
+  ask n-of num-evacuees turtles [ set evacuee? true ]
+
 end
 
 ;メッセージの生成（初期時）
@@ -171,6 +175,7 @@ to update-links
   ;通信範囲外のリンクを削除
   ask links [
     if link-length > comm-range [
+      ;リンクが切れるタイミングで、重複処理のリストをクリアにする
       cleanup-forwarded-list end1 end2
       die
     ]
@@ -197,7 +202,8 @@ to forward-messages
   ;ブラックホールノードではない集合
   let not-blackholes turtles with [not blackhole?]
 
-  ;各ノード（送信側）をループ
+  ;ブラックホールノードは転送しない事を前提とした場合
+  ;ブラックホールではないノード（送信側）をループ
   ask not-blackholes [
     let sender self
 
@@ -249,7 +255,7 @@ to forward-messages
                 log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "ARRIVED"
 
                 if arrived-count >= messages [
-                  ;stop-simulation
+                  stop-simulation
                 ]
 
               ]
@@ -363,25 +369,38 @@ end
 
 to move-nodes
   ask turtles [
-    ifelse [shelter?] of patch-here [
-      rt random 50 - random 50
 
-      fd 1.0 + random-float 0.5
+    ifelse evacuee? [
+      ifelse [shelter?] of patch-here [
+        rt random 50 - random 50
 
-      if not[shelter?] of patch-here [
-        bk 1.0 + random-float 0.5
+        fd 0.5 + random-float 0.5
+
+        if not[shelter?] of patch-here [
+          bk 1.0 + random-float 0.5
+          face shelter-patch
+          rt random 20 - random 10
+        ]
+
+      ] [
         face shelter-patch
-        rt random 20 - random 10
+        fd 0.5 + random-float 0.5
+        if xcor > max-pxcor [ rt 180 ]
+        if xcor < min-pxcor [ rt 180 ]
+        if ycor > max-pycor [ rt 180 ]
+        if ycor < min-pycor [ rt 180 ]
       ]
-    ] [
-      face shelter-patch
-      fd 1.0 + random-float 0.5
 
+    ] [
+      rt random 50 - random 50
+      fd 1.0 + random-float 0.5  ; 1.0～1.5 m
       if xcor > max-pxcor [ rt 180 ]
       if xcor < min-pxcor [ rt 180 ]
       if ycor > max-pycor [ rt 180 ]
       if ycor < min-pycor [ rt 180 ]
     ]
+
+
   ]
 end
 
@@ -396,13 +415,13 @@ to set-p [table key value]
   table:put table key value
 end
 
-;node-id(key)の信頼度を取得
+;node-id(key)の信用度を取得
 to-report get-trust [table key]
   let value table:get-or-default table key 0
   report value
 end
 
-;node-id(key)と信頼度(value)を設定
+;node-id(key)と信用度(value)を設定
 to set-trust [table key value]
   table:put table key value
 end
@@ -425,7 +444,7 @@ to update-encounter[a b]
   ]
 end
 
-;リンクが形成されていないノードのみに適用
+;リンクが存在しないノードのみに適用
 ;P(A,B) = P(A,B)old ∗ (γ＾k)
 ;k＝1 (1tick)
 to aging
@@ -447,12 +466,12 @@ to aging
   ]
 end
 
+;リンク形成時に適用
 ;P(A,C) = P(A,C)old + (1 − P(A,C)old) ∗ P(A,B) ∗ P(B,C) ∗ β
 to update-transitivity [a b]
   ask a [
     let p-ab (get-p p-table [node-id] of b)
     let keys table:keys ([p-table] of b)
-
     foreach keys [
       key ->
       if key != node-id and key != [node-id] of b [
@@ -463,7 +482,6 @@ to update-transitivity [a b]
         set-p p-table key p-new
       ]
     ]
-
   ]
 
   ask b [
@@ -483,10 +501,10 @@ to update-transitivity [a b]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-271
-20
-580
-330
+312
+10
+1321
+1020
 -1
 -1
 1.0
@@ -499,10 +517,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--150
-150
--150
-150
+-500
+500
+-500
+500
 0
 0
 1
@@ -510,10 +528,10 @@ ticks
 30.0
 
 BUTTON
-60
-414
-124
-447
+65
+412
+129
+445
 NIL
 setup
 NIL
@@ -527,10 +545,10 @@ NIL
 1
 
 BUTTON
-165
-416
-228
-449
+168
+412
+231
+445
 NIL
 go
 T
@@ -552,7 +570,7 @@ num-nodes
 num-nodes
 10
 100
-20.0
+100.0
 1
 1
 NIL
@@ -604,10 +622,10 @@ NIL
 HORIZONTAL
 
 MONITOR
-297
-402
-395
-447
+63
+467
+161
+512
 到達したメッセージ
 arrived-count
 17
@@ -638,7 +656,7 @@ trust-thresh
 trust-thresh
 0
 100
-40.0
+100.0
 5
 1
 %
@@ -654,6 +672,21 @@ blackhole-rate
 0
 70
 10.0
+5
+1
+%
+HORIZONTAL
+
+SLIDER
+64
+348
+236
+381
+evacuee-rate
+evacuee-rate
+0
+100
+40.0
 5
 1
 %
