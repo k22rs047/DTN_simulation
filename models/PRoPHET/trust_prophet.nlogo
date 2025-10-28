@@ -151,9 +151,8 @@ end
 ;ログファイル初期化
 to init-log-file
   ;file-deleteが失敗する場合があるので、念のためfile-close
-  if file-exists? event-log-file [
-    file-close-all
-  ]
+  file-close-all
+  
   ;ログファイルおよびヘッダの出力
   let event-header "ticks,msg-id,src-id,dst-id,ttl,sender,receiver,sender-p,receiver-p,event"
   init-file event-log-file event-header
