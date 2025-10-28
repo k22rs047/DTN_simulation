@@ -10,8 +10,10 @@ globals [
   shelter-patch ;避難所の中心
   shelter-radius;避難所の範囲
 
-  log-file     ;ログファイル名
-  done?        ;停止フラグ
+  event-log-file     ;イベントログファイル名
+  decision-log-file   ;転送ログファイル
+
+  done?              ;停止フラグ
 ]
 
 ;避難所のフィールド変数
@@ -42,7 +44,9 @@ to init-globals
   set shelter-radius 100
 
   set arrived-count 0
-  set log-file "data/prophet_log.csv"
+  set event-log-file "data/prophet_event_log.csv"
+  set decision-log-file "data/prophet_decision_log.csv"
+
   set done? false
 end
 
@@ -147,15 +151,16 @@ end
 ;ログファイル初期化
 to init-log-file
   ;file-deleteが失敗する場合があるので、念のためfile-close
-  if file-exists? log-file [
-    file-close
+  if file-exists? event-log-file [
+    file-close-all
   ]
   ;ログファイルおよびヘッダの出力
-  file-delete log-file
-  file-open log-file
-  let header "ticks,msg-id,src-id,dst-id,ttl,sender,receiver,sender-p,receiver-p,event"
-  file-print header
-  file-close
+  let event-header "ticks,msg-id,src-id,dst-id,ttl,sender,receiver,sender-p,receiver-p,event"
+  init-file event-log-file event-header
+
+  let decision-header "ticks,msg-id,src-id,dst-id,ttl,sender,receiver,sender-p,receiver-p,trust-tresh-pass?,blackhole-receiver?,transfer-outcome"
+  init-file decision-log-file decision-header
+
 end
 
 ;----------------メインループ---------------
@@ -333,12 +338,19 @@ to forward-messages
 end
 
 to stop-simulation
-  if file-exists? log-file [
+  if file-exists? event-log-file [
     file-close
   ]
 
   ;シミュレーション停止
   set done? true
+end
+
+to init-file [file-name header]
+  file-delete file-name
+  file-open file-name
+  file-print header
+  file-close
 end
 
 to cleanup-buffer
@@ -352,9 +364,9 @@ to cleanup-buffer
   ]
 end
 
-;ログの出力
+;イベントログの出力
 to log-event [msg-id src-id dst-id ttl sender receiver sender-p receiver-p event]
-  file-open log-file
+  file-open event-log-file
   file-print (word ticks "," msg-id "," src-id "," dst-id "," ttl "," sender "," receiver "," sender-p "," receiver-p "," event)
 end
 
@@ -570,7 +582,7 @@ num-nodes
 num-nodes
 10
 100
-100.0
+33.0
 1
 1
 NIL
