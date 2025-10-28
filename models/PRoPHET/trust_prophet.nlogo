@@ -262,7 +262,7 @@ to forward-messages
 
             ] [
 
-              let receiver-trust get-trust ([trust-table] of receiver) ([node-id] of sender)
+              let receiver-trust get-trust ([trust-table] of sender) ([node-id] of receiver)
 
               ifelse receiver-trust >= 1 [
 
