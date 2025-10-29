@@ -289,7 +289,7 @@ to forward-messages
                 log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust trust-thresh-pass? blackhole-receiver? transfer-outcome
 
               ] [
-                if (sender-p * (1 + trust-thresh / 100)) < receiver-p [
+                ifelse (sender-p * (1 + trust-thresh / 100)) < receiver-p [
 
                   ifelse not [blackhole?] of receiver [
                     ;bufferに追加する
@@ -306,11 +306,15 @@ to forward-messages
                     set transfer-outcome "BH_Transfer"
                   ]
 
-                  ;送信側の転送済みリストに追加
-                  ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
+                  
                   log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust trust-thresh-pass? blackhole-receiver? transfer-outcome
 
+                ] [
+                  set transfer-outcome "Failed"
+                  log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust trust-thresh-pass? blackhole-receiver? transfer-outcome
                 ]
+                ;送信側の転送済みリストに追加
+                ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
               ]
 
             ]
