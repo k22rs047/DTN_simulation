@@ -165,7 +165,8 @@ end
 ;----------------メインループ---------------
 to go
   ;show (word "--------" ticks "-------------")
-  if done? [stop]
+  ;if done? [stop]
+  if ticks = 1500 [stop]
   move-nodes
   update-links
   forward-messages
@@ -260,7 +261,7 @@ to forward-messages
                 log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust trust-thresh-pass? blackhole-receiver? transfer-outcome
 
                 if arrived-count >= messages [
-                  stop-simulation
+                  ;stop-simulation
                 ]
 
               ]
@@ -306,7 +307,7 @@ to forward-messages
                     set transfer-outcome "BH_Transfer"
                   ]
 
-                  
+
                   log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust trust-thresh-pass? blackhole-receiver? transfer-outcome
 
                 ] [
@@ -582,7 +583,7 @@ num-nodes
 num-nodes
 10
 100
-33.0
+100.0
 1
 1
 NIL
@@ -668,7 +669,7 @@ trust-thresh
 trust-thresh
 0
 100
-100.0
+0.0
 5
 1
 %
@@ -698,7 +699,7 @@ evacuee-rate
 evacuee-rate
 0
 100
-100.0
+70.0
 5
 1
 %
