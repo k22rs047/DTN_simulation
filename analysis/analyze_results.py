@@ -1,0 +1,17 @@
+import pandas as pd
+
+read_path = './data/analysis_log.csv'
+df = pd.read_csv(read_path)
+
+average_values = df.mean()
+
+name_mapping = {
+    'delivery_ratio': '配信率',
+    'total_transfers': '総転送回数',
+    'failed_transfers': '閾値により転送を拒否した回数',
+    'total_transfer_opportunities': 'すべての転送機会',
+    'failed_ratio': '抑制率',
+    'average_latency_ticks': '平均遅延時間[ticks]'
+}
+
+print(average_values.rename(name_mapping))
