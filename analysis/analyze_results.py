@@ -14,4 +14,7 @@ name_mapping = {
     'average_latency_ticks': '平均遅延時間[ticks]'
 }
 
+print("各実験の平均を求める:")
+print("実験回数" + str(len(df)) + "回:")
 print(average_values.rename(name_mapping))
+print("---------------------------------------")
