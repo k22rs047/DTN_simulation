@@ -157,7 +157,7 @@ to init-log-file
   let event-header "ticks,msg-id,src-id,dst-id,ttl,sender,receiver,sender-p,receiver-p,event"
   init-file event-log-file event-header
 
-  let decision-header "ticks,msg-id,src-id,dst-id,ttl,sender,receiver,sender-p,receiver-p,receiver-trust,trust-tresh-pass?,blackhole-receiver?,transfer-outcome"
+  let decision-header "ticks,msg-id,src-id,dst-id,ttl,sender,receiver,sender-p,receiver-p,receiver-trust,p-plus-pass?,blackhole-receiver?,transfer-outcome"
   init-file decision-log-file decision-header
 
 end
@@ -235,7 +235,7 @@ to forward-messages
         let is-not-forwarded (not member? (list msg-id ([node-id] of receiver)) ([forwarded-list] of sender))
         let is-not-in-buffer (empty? filter [m -> item 0 m = msg-id] ([buffer] of receiver))
 
-        let trust-thresh-pass? ((sender-p * (1 + trust-thresh / 100)) < receiver-p)
+        let p-plus-pass? ((sender-p * (1 + p-plus / 100)) < receiver-p)
         let blackhole-receiver? [blackhole?] of receiver
         let receiver-trust get-trust ([trust-table] of sender) ([node-id] of receiver)
 
@@ -258,7 +258,7 @@ to forward-messages
                 log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "ARRIVED"
 
                 set transfer-outcome "Delivered"
-                log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust trust-thresh-pass? blackhole-receiver? transfer-outcome
+                log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
 
                 if arrived-count >= messages [
                   ;stop-simulation
@@ -287,10 +287,10 @@ to forward-messages
 
                 ;送信側の転送済みリストに追加
                 ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
-                log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust trust-thresh-pass? blackhole-receiver? transfer-outcome
+                log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
 
               ] [
-                ifelse (sender-p * (1 + trust-thresh / 100)) < receiver-p [
+                ifelse (sender-p * (1 + p-plus / 100)) < receiver-p [
 
                   ifelse not [blackhole?] of receiver [
                     ;bufferに追加する
@@ -308,11 +308,11 @@ to forward-messages
                   ]
 
 
-                  log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust trust-thresh-pass? blackhole-receiver? transfer-outcome
+                  log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
 
                 ] [
                   set transfer-outcome "Failed"
-                  log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust trust-thresh-pass? blackhole-receiver? transfer-outcome
+                  log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
                 ]
                 ;送信側の転送済みリストに追加
                 ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
@@ -365,9 +365,9 @@ to log-event [msg-id src-id dst-id ttl sender receiver sender-p receiver-p event
   file-close
 end
 
-to log-decision-event [msg-id src-id dst-id ttl sender receiver sender-p receiver-p receiver-trust trust-thresh-pass? blackhole-receiver? transfer-outcome]
+to log-decision-event [msg-id src-id dst-id ttl sender receiver sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome]
   file-open decision-log-file
-  file-print (word ticks "," msg-id "," src-id "," dst-id "," ttl "," sender "," receiver "," sender-p "," receiver-p "," receiver-trust "," trust-thresh-pass? "," blackhole-receiver? "," transfer-outcome)
+  file-print (word ticks "," msg-id "," src-id "," dst-id "," ttl "," sender "," receiver "," sender-p "," receiver-p "," receiver-trust "," p-plus-pass? "," blackhole-receiver? "," transfer-outcome)
   file-close
 end
 
@@ -516,8 +516,8 @@ end
 GRAPHICS-WINDOW
 312
 10
-1321
-1020
+1021
+720
 -1
 -1
 1.0
@@ -530,10 +530,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--500
-500
--500
-500
+-350
+350
+-350
+350
 0
 0
 1
@@ -665,8 +665,8 @@ SLIDER
 257
 233
 290
-trust-thresh
-trust-thresh
+p-plus
+p-plus
 0
 100
 0.0
@@ -684,7 +684,7 @@ blackhole-rate
 blackhole-rate
 0
 70
-20.0
+0.0
 5
 1
 %
@@ -699,7 +699,7 @@ evacuee-rate
 evacuee-rate
 0
 100
-70.0
+50.0
 5
 1
 %
