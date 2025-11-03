@@ -2,7 +2,8 @@ import pandas as pd
 import os
 
 #csv読み込み
-df = pd.read_csv("../models/PRoPHET/data/prophet_decision_log.csv")
+read_path = '../models/PRoPHET/data/prophet_decision_log.csv'
+df = pd.read_csv(read_path)
 
 #メッセージの総数（=初期に生成した数）
 #total_messages = df['msg-id'].unique()

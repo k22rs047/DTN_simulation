@@ -38,8 +38,8 @@ turtles-own [
 
 ;グローバル変数の初期化
 to init-globals
-  set P-INIT 0.80
-  set GAMMA 0.99
+  set P-INIT 0.75
+  set GAMMA 0.98
   set BETA 0.25
   set shelter-radius 100
 
@@ -669,7 +669,7 @@ p-plus
 p-plus
 0
 100
-0.0
+30.0
 5
 1
 %
