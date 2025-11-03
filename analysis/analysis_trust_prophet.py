@@ -6,6 +6,7 @@ df = pd.read_csv("../models/PRoPHET/data/prophet_decision_log.csv")
 
 #メッセージの総数（=初期に生成した数）
 #total_messages = df['msg-id'].unique()
+#全メッセージ数を記述
 total_messages = 17
 #宛先に到着したメッセージを取得
 delivered_count = df[df['transfer-outcome'] == 'Delivered']['msg-id'].unique()
