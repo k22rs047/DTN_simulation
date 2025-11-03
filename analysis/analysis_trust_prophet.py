@@ -23,13 +23,13 @@ print("総転送回数：" + str(total_transfers))
 
 
 #提案手法の閾値によって転送しなかった回数
-failed_transfers = df[(df['transfer-outcome'] == 'Failed') & (df['trust-tresh-pass?'] == False)].shape[0]
+failed_transfers = df[(df['transfer-outcome'] == 'Failed') & (df['p-plus-pass?'] == False)].shape[0]
 #すべての転送機会
 total_transfer_opportunities = df.shape[0]
 #抑制率
 failed_ratio = failed_transfers / total_transfer_opportunities
 
-print("閾値により転送を拒否した回数：" + str(failed_transfers))
+print("提案手法により転送を拒否した回数：" + str(failed_transfers))
 print("すべての転送機会：" + str(total_transfer_opportunities))
 print("抑制率：" + str(failed_ratio))
 

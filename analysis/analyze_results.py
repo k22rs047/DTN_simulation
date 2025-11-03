@@ -11,7 +11,7 @@ name_mapping = {
     'failed_transfers': '閾値により転送を拒否した回数',
     'total_transfer_opportunities': 'すべての転送機会',
     'failed_ratio': '抑制率',
-    'average_latency_ticks': '平均遅延時間[ticks]'
+    'avarage_latency_ticks': '平均遅延時間[ticks]'
 }
 
 print("各実験の平均を求める:")
