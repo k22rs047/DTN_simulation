@@ -19,7 +19,6 @@ globals [
 ;避難所のフィールド変数
 patches-own [
   shelter?   ;避難所かどうか
-  capacity   ;避難所の収容人数
 ]
 
 ;ノードのフィールド変数
@@ -74,7 +73,6 @@ end
 to setup-shelter
   ask patches [
     set shelter? false
-    set capacity 0
   ]
 
   set shelter-patch one-of patches
@@ -82,7 +80,6 @@ to setup-shelter
   ask patches [
     if distance shelter-patch <= shelter-radius [
       set shelter? true
-      set capacity 100
       set pcolor orange
     ]
   ]
