@@ -332,9 +332,7 @@ to forward-messages
 end
 
 to stop-simulation
-  if file-exists? event-log-file [
-    file-close
-  ]
+  file-close-all
 
   ;シミュレーション停止
   set done? true
