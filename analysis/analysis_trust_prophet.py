@@ -8,7 +8,7 @@ df = pd.read_csv(read_path)
 #メッセージの総数（=初期に生成した数）
 #total_messages = df['msg-id'].unique()
 #全メッセージ数を記述
-total_messages = 17
+total_messages = 20
 #宛先に到着したメッセージを取得
 delivered_count = df[df['transfer-outcome'] == 'Delivered']['msg-id'].unique()
 
