@@ -5,14 +5,11 @@ globals [
   P-INIT      ;初期予測値
   GAMMA       ;aging係数
   BETA        ;推移性係数
-
   arrived-count ;到達したメッセージ数
   shelter-patch ;避難所の中心
   shelter-radius;避難所の範囲
-
   event-log-file     ;イベントログファイル名
   decision-log-file   ;転送ログファイル
-
   done?              ;停止フラグ
 ]
 
@@ -23,16 +20,16 @@ patches-own [
 
 ;ノードのフィールド変数
 turtles-own [
-  node-id        ;インスタンスの番号
-  msg-cnt        ;生成したメッセージの数
-  p-table        ;[[dst-id, p] ....]  Map{key,value}(連想配列)
-  trust-table    ;[[node-id, M-count] ...]  Map{key,value}(連想配列)
-  buffer         ;[[msg-id, src-id, dst-id, ttl] ...]
-  delivered-list ;宛先として受け取ったmsg-id
-  forwarded-list ;転送処理をした情報を保持[[msg-id, node-id]...]
-  evacuee?       ;避難者かどうか
-
-  blackhole?     ;ブラックホールノードかどうか
+  node-id          ;オブジェクトの番号
+  msg-cnt          ;生成したメッセージの数
+  p-table          ;[dst-id -> p]  Map{key,value}(連想配列)
+  trust-table      ;[node-id -> trust] Map{key,value}(連想配列)
+  buffer           ;[[msg-id, src-id, dst-id, ttl], ...]
+  delivered-list   ;宛先として受け取ったmsg-idのリスト
+  forwarded-list   ;転送処理をした情報を保持[[msg-id, node-id], ...]
+  transfer-history ;一定時間保持するリスト
+  evacuee?         ;避難者かどうか
+  blackhole?       ;ブラックホールノードかどうか
 ]
 
 ;グローバル変数の初期化
@@ -45,7 +42,6 @@ to init-globals
   set arrived-count 0
   set event-log-file "data/prophet_event_log.csv"
   set decision-log-file "data/prophet_decision_log.csv"
-
   set done? false
 end
 
@@ -55,18 +51,16 @@ to setup
   init-globals
   setup-map
   setup-shelter
-
   setup-nodes
   setup-blackholes
   setup-messages
-
   init-log-file
   reset-ticks
 end
 
 ;マップの初期化
 to setup-map
-  ;resize-world -500 500 -500 500
+  ;resize-world -350 350 -350 350
   set-patch-size 1 ;1パッチ = 1m
 end
 
@@ -75,7 +69,7 @@ to setup-shelter
     set shelter? false
   ]
 
-  set shelter-patch one-of patches
+  set shelter-patch one-of patches with[pxcor = 100 and pycor = 100]
 
   ask patches [
     if distance shelter-patch <= shelter-radius [
@@ -102,8 +96,8 @@ to setup-nodes
     set buffer []
     set delivered-list []
     set forwarded-list []
+    set transfer-history []
     set evacuee? false
-
     set blackhole? false
     set label node-id
     set label-color white
@@ -111,7 +105,6 @@ to setup-nodes
 
   let num-evacuees round (num-nodes * (evacuee-rate / 100))
   ask n-of num-evacuees turtles [ set evacuee? true ]
-
 end
 
 ;メッセージの生成（初期時）
@@ -129,9 +122,6 @@ to setup-messages
     ask turtle dst-id [ set color yellow ]
     set buffer lput (list msg-id src-id dst-id ttl) buffer
     set color brown
-
-    show (word "Message generated " src-id " to " dst-id)
-    show (word "Message TTL (hops)" ttl)
   ]
 end
 
@@ -156,18 +146,16 @@ to init-log-file
 
   let decision-header "ticks,msg-id,src-id,dst-id,ttl,sender,receiver,sender-p,receiver-p,receiver-trust,p-plus-pass?,blackhole-receiver?,transfer-outcome"
   init-file decision-log-file decision-header
-
 end
 
 ;----------------メインループ---------------
 to go
-  ;show (word "--------" ticks "-------------")
-  ;if done? [stop]
   if ticks = 1500 [stop]
   move-nodes
   update-links
   forward-messages
   cleanup-buffer
+  cleanup-transfer-history
   aging
   tick
 end
@@ -192,6 +180,7 @@ to update-links
       if not link-neighbor? myself [
         create-link-with myself [ set color gray ]
         ;リンクが形成されたタイミング
+        ;到達確率の更新
         update-encounter a b
         update-transitivity a b
       ]
@@ -237,10 +226,10 @@ to forward-messages
         let receiver-trust get-trust ([trust-table] of sender) ([node-id] of receiver)
 
         let transfer-outcome ""
-
         if (sender-p < receiver-p) and ttl-ok? [
           if is-not-forwarded and is-not-in-buffer [
 
+            ;宛先到達の処理
             ifelse ([node-id] of receiver) = dst-id [
               if not member? msg-id ([delivered-list] of receiver) [
                 ;受信側のリストに追加
@@ -264,9 +253,8 @@ to forward-messages
               ]
 
             ] [
-
+              ;中継ノードの処理
               ifelse receiver-trust >= 1 [
-
                 ifelse not [blackhole?] of receiver [
                   ;bufferに追加する
                   set buffer lput send-msg buffer
@@ -279,40 +267,64 @@ to forward-messages
                   log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
                   set transfer-outcome "Trust_Transfer"
                 ] [
+                  ;ブラックホールノードへの転送
+                  ;本当はブラックホールノードへ転送をしたかわからないがシミュレーションで再現しただけ
                   set transfer-outcome "BH_Transfer"
                 ]
 
+                if member? (list msg-id ([node-id] of receiver)) ([transfer-history] of sender) [
+                  let trust get-trust ([trust-table] of sender) ([node-id] of receiver)
+                  set trust trust - 1
+                  set-trust ([trust-table] of sender) ([node-id] of receiver) trust
+                ]
+
                 ;送信側の転送済みリストに追加
-                ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
+                ask sender [
+                  let temp (list msg-id ([node-id] of receiver))
+                  set forwarded-list lput temp forwarded-list
+                  set transfer-history lput temp transfer-history
+                ]
+
                 log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
 
               ] [
-                ifelse (sender-p * (1 + p-plus / 100)) < receiver-p [
 
-                  ifelse not [blackhole?] of receiver [
-                    ;bufferに追加する
-                    set buffer lput send-msg buffer
-                    set color green
+                if receiver-trust = 0 [
+                  ifelse (sender-p * (1 + p-plus / 100)) < receiver-p [
+                    ifelse not [blackhole?] of receiver [
+                      ;bufferに追加する
+                      set buffer lput send-msg buffer
+                      set color green
 
-                    let m-count get-trust trust-table ([node-id] of sender)
-                    set m-count m-count + 1
-                    set-trust trust-table ([node-id] of sender) m-count
+                      let m-count get-trust trust-table ([node-id] of sender)
+                      set m-count m-count + 1
+                      set-trust trust-table ([node-id] of sender) m-count
 
-                    log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
-                    set transfer-outcome "Low_Trust_Transfer"
+                      log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
+                      set transfer-outcome "Low_Trust_Transfer"
+                    ] [
+                      set transfer-outcome "BH_Transfer"
+                    ]
+
+                    log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
                   ] [
-                    set transfer-outcome "BH_Transfer"
+                    set transfer-outcome "Failed"
+                    log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
                   ]
 
-
-                  log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
-
-                ] [
-                  set transfer-outcome "Failed"
-                  log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
+                  if member? (list msg-id ([node-id] of receiver)) ([transfer-history] of sender) [
+                    let trust get-trust ([trust-table] of sender) ([node-id] of receiver)
+                    set trust trust - 1
+                    set-trust ([trust-table] of sender) ([node-id] of receiver) trust
+                  ]
+                  ;送信側の転送済みリストに追加
+                  ask sender [
+                    let temp (list msg-id ([node-id] of receiver))
+                    set forwarded-list lput temp forwarded-list
+                    set transfer-history lput temp transfer-history
+                  ]
                 ]
-                ;送信側の転送済みリストに追加
-                ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
+
               ]
 
             ]
@@ -353,6 +365,14 @@ to cleanup-buffer
   ]
 end
 
+to cleanup-transfer-history
+  ask turtles [
+    while [length transfer-history > history-limit] [
+      set transfer-history remove-item 0 transfer-history
+    ]
+  ]
+end
+
 ;イベントログの出力
 to log-event [msg-id src-id dst-id ttl sender receiver sender-p receiver-p event]
   file-open event-log-file
@@ -368,16 +388,15 @@ end
 
 to cleanup-forwarded-list [a b]
   ask a [
-    set forwarded-list filter [m -> item 1 m != [node-id] of b] forwarded-list
+    set forwarded-list filter [msg -> item 1 msg != [node-id] of b] forwarded-list
   ]
   ask b [
-    set forwarded-list filter [m -> item 1 m != [node-id] of a] forwarded-list
+    set forwarded-list filter [msg -> item 1 msg != [node-id] of a] forwarded-list
   ]
 end
 
 to move-nodes
   ask turtles [
-
     ifelse evacuee? [
       ifelse [shelter?] of patch-here [
         rt random 50 - random 50
@@ -393,10 +412,6 @@ to move-nodes
       ] [
         face shelter-patch
         fd 0.5 + random-float 0.5
-        if xcor > max-pxcor [ rt 180 ]
-        if xcor < min-pxcor [ rt 180 ]
-        if ycor > max-pycor [ rt 180 ]
-        if ycor < min-pycor [ rt 180 ]
       ]
 
     ] [
@@ -407,8 +422,6 @@ to move-nodes
       if ycor > max-pycor [ rt 180 ]
       if ycor < min-pycor [ rt 180 ]
     ]
-
-
   ]
 end
 
@@ -536,10 +549,10 @@ ticks
 30.0
 
 BUTTON
-65
-412
-129
-445
+69
+451
+133
+484
 NIL
 setup
 NIL
@@ -553,10 +566,10 @@ NIL
 1
 
 BUTTON
-168
-412
-231
-445
+172
+451
+235
+484
 NIL
 go
 T
@@ -630,10 +643,10 @@ NIL
 HORIZONTAL
 
 MONITOR
-63
-467
-161
-512
+105
+514
+203
+559
 到達したメッセージ
 arrived-count
 17
@@ -664,7 +677,7 @@ p-plus
 p-plus
 0
 100
-30.0
+100.0
 5
 1
 %
@@ -679,7 +692,7 @@ blackhole-rate
 blackhole-rate
 0
 70
-0.0
+15.0
 5
 1
 %
@@ -698,6 +711,21 @@ evacuee-rate
 5
 1
 %
+HORIZONTAL
+
+SLIDER
+62
+392
+234
+425
+history-limit
+history-limit
+0
+100
+50.0
+1
+1
+NIL
 HORIZONTAL
 
 @#$#@#$#@
