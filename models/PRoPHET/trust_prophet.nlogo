@@ -304,13 +304,22 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
       let trust get-trust ([trust-table] of sender) receiver-id
       set trust trust - 1
       set-trust ([trust-table] of sender) receiver-id trust
+
+      ;評価に使った古い履歴を削除する（後で再追加するため）
+      ask sender [
+        set transfer-history remove (list msg-id receiver-id) transfer-history
+      ]
     ]
 
     ;送信側の転送済みリストに追加
     ask sender [
       let temp (list msg-id receiver-id)
       set forwarded-list lput temp forwarded-list
-      set transfer-history lput temp transfer-history
+
+      ;リストにない場合のみ追加する
+      if not member? temp transfer-history [
+        set transfer-history lput temp transfer-history
+      ]
     ]
 
     log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
@@ -345,15 +354,47 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
       let trust get-trust ([trust-table] of sender) receiver-id
       set trust trust - 1
       set-trust ([trust-table] of sender) receiver-id trust
+
+      ;評価に使った古い履歴を削除する（後で再追加するため）
+      ask sender [
+        set transfer-history remove (list msg-id receiver-id) transfer-history
+      ]
     ]
 
     ;送信側の転送済みリストに追加
     ask sender [
       let temp (list msg-id ([node-id] of receiver))
       set forwarded-list lput temp forwarded-list
-      set transfer-history lput temp transfer-history
+      
+      ;リストにない場合のみ追加する
+      if not member? temp transfer-history [
+        set transfer-history lput temp transfer-history
+      ]
+    ]
+  ]
+
+  if receiver-trust < 0 [
+    if member? (list msg-id receiver-id) ([transfer-history] of sender) [
+      let trust get-trust ([trust-table] of sender) receiver-id
+      set trust trust - 1
+      set-trust ([trust-table] of sender) receiver-id trust
+
+      ;評価に使った古い履歴を削除する（後で再追加するため）
+      ask sender [
+        set transfer-history remove (list msg-id receiver-id) transfer-history
+      ]
     ]
 
+    ;送信側の転送済みリストに追加
+    ask sender [
+      let temp (list msg-id ([node-id] of receiver))
+      set forwarded-list lput temp forwarded-list
+      
+      ;リストにない場合のみ追加する
+      if not member? temp transfer-history [
+        set transfer-history lput temp transfer-history
+      ]
+    ]
   ]
 end
 
