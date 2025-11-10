@@ -189,11 +189,18 @@ to update-links
 end
 
 to forward-messages
+  ;ブラックホールノードではない集合
   let not-blackholes turtles with [not blackhole?]
+
+  ;ブラックホールノードは転送しない事を前提としている
+  ;ブラックホールではないノード（送信側）をループ
   ask not-blackholes [
     let sender self
+
+    ;送信側のbufferをループ
     foreach buffer [
       msg ->
+      ;隣接ノード（受信候補）をループ
       ask link-neighbors [
         handle-message-transfer sender self msg
       ]
@@ -202,6 +209,7 @@ to forward-messages
 end
 
 to handle-message-transfer [sender receiver msg]
+  ;メッセージの要素を取り出す
   let msg-id item 0 msg
   let src-id item 1 msg
   let dst-id item 2 msg
@@ -209,19 +217,20 @@ to handle-message-transfer [sender receiver msg]
 
   let send-msg replace-item 3 msg (ttl - 1)
 
+  let sender-id [node-id] of sender
+  let receiver-id [node-id] of receiver
   let sender-p (get-p ([p-table] of sender) dst-id)  ;送信者側の宛先までの到達確率
   let receiver-p (get-p ([p-table] of receiver) dst-id) ;受信者側の宛先までの到達確率
   let receiver-trust get-trust ([trust-table] of sender) ([node-id] of receiver)
-  let blackhole-receiver? [blackhole?] of receiver
-
+  
   let ttl-ok? (ttl > 0)
-  let is-not-forwarded (not member? (list msg-id ([node-id] of receiver)) ([forwarded-list] of sender))
+  let is-not-forwarded (not member? (list msg-id receiver-id) ([forwarded-list] of sender))
   let is-not-in-buffer (empty? filter [m -> item 0 m = msg-id] ([buffer] of receiver))
+  let blackhole-receiver? [blackhole?] of receiver
   let p-improved? (sender-p < receiver-p)
 
   if p-improved? and ttl-ok? and is-not-forwarded and is-not-in-buffer [
-
-    ifelse ([node-id] of receiver) = dst-id [
+    ifelse receiver-id = dst-id [
       ;宛先ノードへの到達処理
       process-delivery sender receiver msg-id src-id dst-id ttl sender-p receiver-p receiver-trust blackhole-receiver?
     ] [
@@ -233,6 +242,7 @@ end
 
 ;メッセージの宛先到達処理
 to process-delivery [sender receiver msg-id src-id dst-id ttl sender-p receiver-p receiver-trust blackhole-receiver?]
+
   if not member? msg-id ([delivered-list] of receiver) [
     let sender-id [node-id] of sender
     let receiver-id [node-id] of receiver
@@ -257,9 +267,11 @@ to process-delivery [sender receiver msg-id src-id dst-id ttl sender-p receiver-
     if arrived-count >= messages [
       ;stop-simulation
     ]
+    
   ]
 end
 
+;中継ノード転送処理
 to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p receiver-p receiver-trust blackhole-receiver?]
   let sender-id [node-id] of sender
   let receiver-id [node-id] of receiver
@@ -268,30 +280,35 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
 
   if receiver-trust >= 1 [
     ifelse not blackhole-receiver? [
-
+      
       ask receiver [
+        ;bufferの末尾に追加する
         set buffer lput send-msg buffer
         set color green
 
+        ;受信側で送信側のtrustを上げる
         let m-count get-trust trust-table sender-id
         set m-count m-count + 1
         set-trust trust-table sender-id m-count
       ]
 
-      log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
+      log-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p "FORWARDED"
       set transfer-outcome "Trust_Transfer"
     ] [
-      set transfer-outcome "BH_Transfer" ; ブラックホールノードへの転送
+      ;ブラックホールノードへの転送
+      set transfer-outcome "BH_Transfer"
     ]
-
-    if member? (list msg-id ([node-id] of receiver)) ([transfer-history] of sender) [
-      let trust get-trust ([trust-table] of sender) ([node-id] of receiver)
+    
+    if member? (list msg-id receiver-id) ([transfer-history] of sender) [
+      ;送信側が受信側のtrustを下げる
+      let trust get-trust ([trust-table] of sender) receiver-id
       set trust trust - 1
-      set-trust ([trust-table] of sender) ([node-id] of receiver) trust
+      set-trust ([trust-table] of sender) receiver-id trust
     ]
 
+    ;送信側の転送済みリストに追加
     ask sender [
-      let temp (list msg-id ([node-id] of receiver))
+      let temp (list msg-id receiver-id)
       set forwarded-list lput temp forwarded-list
       set transfer-history lput temp transfer-history
     ]
@@ -300,9 +317,11 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
   ]
 
   if receiver-trust = 0 [
-    if p-plus-pass? [
+    ifelse p-plus-pass? [
       ifelse not blackhole-receiver? [
+
         ask receiver [
+          ;bufferの末尾に追加する
           set buffer lput send-msg buffer
           set color green
 
@@ -311,26 +330,29 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
           set-trust trust-table sender-id m-count
         ]
 
-        log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
+        log-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p "FORWARDED"
         set transfer-outcome "Low_Trust_Transfer"
       ] [
         set transfer-outcome "BH_Transfer"
       ]
+      
+      log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
+    ] [
       log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
     ]
 
-    if member? (list msg-id ([node-id] of receiver)) ([transfer-history] of sender) [
-      let trust get-trust ([trust-table] of sender) ([node-id] of receiver)
+    if member? (list msg-id receiver-id) ([transfer-history] of sender) [
+      let trust get-trust ([trust-table] of sender) receiver-id
       set trust trust - 1
-      set-trust ([trust-table] of sender) ([node-id] of receiver) trust
+      set-trust ([trust-table] of sender) receiver-id trust
     ]
 
+    ;送信側の転送済みリストに追加
     ask sender [
       let temp (list msg-id ([node-id] of receiver))
       set forwarded-list lput temp forwarded-list
       set transfer-history lput temp transfer-history
     ]
-    log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
 
   ]
 end
@@ -353,7 +375,7 @@ to cleanup-buffer
   ask turtles [
     ;TTL=0の削除
     set buffer filter [msg -> item 3 msg > 0] buffer
-    ;FIFOの制限
+    ;FIFOを適用
     while [length buffer > buffer-limit] [
       set buffer remove-item 0 buffer
     ]
@@ -362,6 +384,7 @@ end
 
 to cleanup-transfer-history
   ask turtles [
+    ;FIFOを適用
     while [length transfer-history > history-limit] [
       set transfer-history remove-item 0 transfer-history
     ]
