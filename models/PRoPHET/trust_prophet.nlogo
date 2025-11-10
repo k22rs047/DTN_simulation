@@ -2,15 +2,15 @@ extensions [table]  ;拡張機能
 
 ;大域変数
 globals [
-  P-INIT      ;初期予測値
-  GAMMA       ;aging係数
-  BETA        ;推移性係数
-  arrived-count ;到達したメッセージ数
-  shelter-patch ;避難所の中心
-  shelter-radius;避難所の範囲
-  event-log-file     ;イベントログファイル名
-  decision-log-file   ;転送ログファイル
-  done?              ;停止フラグ
+  P-INIT            ;初期予測値
+  GAMMA             ;aging係数
+  BETA              ;推移性係数
+  arrived-count     ;到達したメッセージ数
+  shelter-patch     ;避難所の中心
+  shelter-radius    ;避難所の範囲
+  event-log-file    ;イベントログファイル名
+  decision-log-file ;転送ログファイル
+  done?             ;停止フラグ
 ]
 
 ;避難所のフィールド変数
@@ -27,7 +27,7 @@ turtles-own [
   buffer           ;[[msg-id, src-id, dst-id, ttl], ...]
   delivered-list   ;宛先として受け取ったmsg-idのリスト
   forwarded-list   ;転送処理をした情報を保持[[msg-id, node-id], ...]
-  transfer-history ;一定時間保持するリスト
+  transfer-history ;trust評価のための一定時間保持するリスト
   evacuee?         ;避難者かどうか
   blackhole?       ;ブラックホールノードかどうか
 ]
@@ -335,7 +335,7 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
       ] [
         set transfer-outcome "BH_Transfer"
       ]
-      
+
       log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
     ] [
       log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
