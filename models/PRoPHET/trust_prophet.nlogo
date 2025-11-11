@@ -24,7 +24,7 @@ turtles-own [
   msg-cnt          ;生成したメッセージの数
   p-table          ;[dst-id -> p]  Map{key,value}(連想配列)
   trust-table      ;[node-id -> trust] Map{key,value}(連想配列)
-  buffer           ;[[msg-id, src-id, dst-id, ttl], ...]
+  buffer           ;[[msg-id, src-id, dst-id, ttl], ...]（バンドル）
   delivered-list   ;宛先として受け取ったmsg-idのリスト
   forwarded-list   ;転送処理をした情報を保持[[msg-id, node-id], ...]
   transfer-history ;trust評価のための一定時間保持するリスト
@@ -252,9 +252,9 @@ to process-delivery [sender receiver msg-id src-id dst-id ttl sender-p receiver-
       set delivered-list lput msg-id delivered-list
       set color red
 
-      let m-count get-trust trust-table sender-id
-      set m-count m-count + 1
-      set-trust trust-table sender-id m-count
+      let trust get-trust trust-table sender-id
+      set trust trust + 1
+      set-trust trust-table sender-id trust
     ]
 
     set arrived-count arrived-count + 1
@@ -286,9 +286,9 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
         set color green
 
         ;受信側で送信側のtrustを上げる
-        let m-count get-trust trust-table sender-id
-        set m-count m-count + 1
-        set-trust trust-table sender-id m-count
+        let trust get-trust trust-table sender-id
+        set trust trust + 1
+        set-trust trust-table sender-id trust
       ]
 
       log-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p "FORWARDED"
@@ -303,11 +303,6 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
       let trust get-trust ([trust-table] of sender) receiver-id
       set trust trust - 1
       set-trust ([trust-table] of sender) receiver-id trust
-
-      ;評価に使った古い履歴を削除する（後で再追加するため）
-      ask sender [
-        set transfer-history remove (list msg-id receiver-id) transfer-history
-      ]
     ]
 
     ;送信側の転送済みリストに追加
@@ -333,9 +328,9 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
           set buffer lput send-msg buffer
           set color green
 
-          let m-count get-trust trust-table sender-id
-          set m-count m-count + 1
-          set-trust trust-table sender-id m-count
+          let trust get-trust trust-table sender-id
+          set trust trust + 1
+          set-trust trust-table sender-id trust
         ]
 
         log-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p "FORWARDED"
@@ -353,11 +348,6 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
       let trust get-trust ([trust-table] of sender) receiver-id
       set trust trust - 1
       set-trust ([trust-table] of sender) receiver-id trust
-
-      ;評価に使った古い履歴を削除する（後で再追加するため）
-      ask sender [
-        set transfer-history remove (list msg-id receiver-id) transfer-history
-      ]
     ]
 
     ;送信側の転送済みリストに追加
@@ -377,11 +367,6 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
       let trust get-trust ([trust-table] of sender) receiver-id
       set trust trust - 1
       set-trust ([trust-table] of sender) receiver-id trust
-
-      ;評価に使った古い履歴を削除する（後で再追加するため）
-      ask sender [
-        set transfer-history remove (list msg-id receiver-id) transfer-history
-      ]
     ]
 
     ;送信側の転送済みリストに追加
@@ -394,6 +379,8 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
         set transfer-history lput temp transfer-history
       ]
     ]
+
+    log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
   ]
 end
 
@@ -780,7 +767,7 @@ history-limit
 history-limit
 0
 100
-4.0
+5.0
 1
 1
 NIL
