@@ -222,7 +222,7 @@ to handle-message-transfer [sender receiver msg]
   let sender-p (get-p ([p-table] of sender) dst-id)  ;送信者側の宛先までの到達確率
   let receiver-p (get-p ([p-table] of receiver) dst-id) ;受信者側の宛先までの到達確率
   let receiver-trust get-trust ([trust-table] of sender) ([node-id] of receiver)
-  
+
   let ttl-ok? (ttl > 0)
   let is-not-forwarded (not member? (list msg-id receiver-id) ([forwarded-list] of sender))
   let is-not-in-buffer (empty? filter [m -> item 0 m = msg-id] ([buffer] of receiver))
@@ -267,7 +267,7 @@ to process-delivery [sender receiver msg-id src-id dst-id ttl sender-p receiver-
     if arrived-count >= messages [
       ;stop-simulation
     ]
-    
+
   ]
 end
 
@@ -280,7 +280,6 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
 
   if receiver-trust >= 1 [
     ifelse not blackhole-receiver? [
-      
       ask receiver [
         ;bufferの末尾に追加する
         set buffer lput send-msg buffer
@@ -298,7 +297,7 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
       ;ブラックホールノードへの転送
       set transfer-outcome "BH_Transfer"
     ]
-    
+
     if member? (list msg-id receiver-id) ([transfer-history] of sender) [
       ;送信側が受信側のtrustを下げる
       let trust get-trust ([trust-table] of sender) receiver-id
@@ -365,8 +364,8 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
     ask sender [
       let temp (list msg-id ([node-id] of receiver))
       set forwarded-list lput temp forwarded-list
-      
-      ;リストにない場合のみ追加する
+
+      ;tempがリストにない場合のみ追加する
       if not member? temp transfer-history [
         set transfer-history lput temp transfer-history
       ]
@@ -389,7 +388,7 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
     ask sender [
       let temp (list msg-id ([node-id] of receiver))
       set forwarded-list lput temp forwarded-list
-      
+
       ;リストにない場合のみ追加する
       if not member? temp transfer-history [
         set transfer-history lput temp transfer-history
