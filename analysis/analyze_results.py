@@ -32,11 +32,10 @@ def sig_digits(x, n):
 sig_digits_num = 3
 formatted_dict = {}
 for name, value in average_values.rename(name_mapping).items():
-
     rounded_value = sig_digits(value, sig_digits_num)
 
     formatted_str = f'{rounded_value:.10f}'.rstrip('0').rstrip('.')
 
-    print(name, formatted_str)
+    print(str(name) + ": " + str(formatted_str))
 
 print("---------------------------------------")
