@@ -1,5 +1,5 @@
 import pandas as pd
-import numpy as np
+import os
 
 read_path = './data/analysis_log.csv'
 df = pd.read_csv(read_path)
@@ -31,11 +31,34 @@ def sig_digits(x, n):
 
 sig_digits_num = 3
 formatted_dict = {}
-for name, value in average_values.rename(name_mapping).items():
+
+#データの平均をresults_log.csvファイルに出力
+data = {}
+for name, value in average_values.items():
     rounded_value = sig_digits(value, sig_digits_num)
 
     formatted_str = f'{rounded_value:.10f}'.rstrip('0').rstrip('.')
 
-    print(str(name) + ": " + str(formatted_str))
+    data[name] = [formatted_str]
+    print(str(name_mapping[name]) + ": " + str(formatted_str))
+
+output_path = './data/results_log.csv'
+
+df = pd.DataFrame(data)
+
+file_exists = os.path.exists(output_path)
+file_is_empty = False
+
+if file_exists:
+    if os.path.getsize(output_path) == 0:
+        file_is_empty = True
+
+if file_exists:
+    if file_is_empty:
+        #上書き
+        df.to_csv(output_path, mode='w', header=True, index=False)
+    else:
+        #追記
+        df.to_csv(output_path, mode='a', header=False, index=False)
 
 print("---------------------------------------")
