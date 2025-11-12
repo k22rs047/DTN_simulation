@@ -449,7 +449,7 @@ to move-nodes
         fd 0.5 + random-float 0.5
 
         if not[shelter?] of patch-here [
-          bk 1.0 + random-float 0.5
+          bk 0.5 + random-float 0.5
           face shelter-patch
           rt random 20 - random 10
         ]
