@@ -150,7 +150,7 @@ end
 
 ;----------------メインループ---------------
 to go
-  if ticks = 1500 [stop]
+  ;if ticks = 100 [stop]
   move-nodes
   update-links
   forward-messages
