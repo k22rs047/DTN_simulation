@@ -51,6 +51,7 @@ avarage_latency = sum_ticks_values / delivery_rows_length
 print("平均遅延時間：" + str(avarage_latency) + " [ticks]")
 print("--------------------------------------------------")
 
+#出力用の処理
 output_path = './data/analysis_log.csv'
 
 data = {
