@@ -17,7 +17,7 @@ para_map = {
     'buffer-limit' : '20',
     'messages' : '20',
     'p-plus' : '0',
-    'blackhole-rate' : '10',
+    'blackhole-rate' : '0',
     'evacuee-rate' : '50',
     'history-limit' : '5'
 }
@@ -34,10 +34,6 @@ ticks_limit = 100
 cmd_analysis = 'python analysis_trust_prophet.py'
 cmd_average = 'python analyze_results.py'
 
-#対照実験用のパラメータ
-experiment_map = {
-}
-
 #実験の実行
 def run_experiment(experiment_num):
     for i in range(experiment_num):
@@ -47,7 +43,13 @@ def run_experiment(experiment_num):
     #平均を求める
     subprocess.call(cmd_average)
 
-run_experiment(experiment_num)
+#対照実験用のパラメータ
+v_name = 'blackhole-rate'
+experiment_list = [0, 10, 20, 30, 40]
+
+for para in experiment_list:
+    netlogo.command("set " + v_name + " " + para)
+    run_experiment(experiment_num)
 
 #シミュレーターの停止
 netlogo.kill_workspace()
