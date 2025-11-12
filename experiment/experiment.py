@@ -16,8 +16,8 @@ para_map = {
     'ttl-hops' : '15',
     'buffer-limit' : '20',
     'messages' : '20',
-    'p-plus' : '30',
-    'blackhole-rate' : '20',
+    'p-plus' : '0',
+    'blackhole-rate' : '10',
     'evacuee-rate' : '50',
     'history-limit' : '5'
 }
@@ -30,7 +30,7 @@ for name, value in para_map.items():
 #実験に利用する値
 #一回の実験でモデルを実行する回数
 experiment_num = 10
-ticks_limit = 1500
+ticks_limit = 100
 cmd_analysis = 'python analysis_trust_prophet.py'
 cmd_average = 'python analyze_results.py'
 
