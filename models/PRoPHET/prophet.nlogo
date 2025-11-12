@@ -2,38 +2,45 @@ extensions [table]  ;拡張機能
 
 ;大域変数
 globals [
-  P-INIT      ;初期予測値
-  GAMMA       ;aging係数
-  BETA        ;推移性係数
-  arrived-count ;到達したメッセージ数
+  P-INIT            ;初期予測値
+  GAMMA             ;aging係数
+  BETA              ;推移性係数
+  arrived-count     ;到達したメッセージ数
+  shelter-patch     ;避難所の中心
+  shelter-radius    ;避難所の範囲
+  event-log-file    ;イベントログファイル名
+  decision-log-file ;転送ログファイル
+  done?             ;停止フラグ
+]
 
-  log-file     ;ログファイル名
-  ok-done?     ;停止フラグ
+;避難所のフィールド変数
+patches-own [
+  shelter?   ;避難所かどうか
 ]
 
 ;ノードのフィールド変数
 turtles-own [
-  node-id ;インスタンスの番号
-  msg-cnt ;生成したメッセージの数
-  p-table  ;[[dst-id, p] ....]  Map{key,value}
-  trust-table ;[[node-id, M-count] ...]  Map{key,value}  信頼度
-  buffer  ;[[msg-id, src-id, dst-id, ttl] ...]
-  l-buffer;bufferの制限
-  delivered-list ;宛先として受け取ったmsg-id
-  forwarded-list ;転送処理をした情報を保持[[msg-id, node-id]...]
-
-  black-hole? ;ブラックホールノードかどうか
+  node-id          ;オブジェクトの番号
+  msg-cnt          ;生成したメッセージの数
+  p-table          ;[dst-id -> p]  Map{key,value}(連想配列)
+  buffer           ;[[msg-id, src-id, dst-id, ttl], ...]（バンドル）
+  delivered-list   ;宛先として受け取ったmsg-idのリスト
+  forwarded-list   ;転送処理をした情報を保持[[msg-id, node-id], ...]
+  evacuee?         ;避難者かどうか
+  blackhole?       ;ブラックホールノードかどうか
 ]
 
 ;グローバル変数の初期化
 to init-globals
-  set P-INIT 0.80
-  set GAMMA 0.99
+  set P-INIT 0.75
+  set GAMMA 0.98
   set BETA 0.25
+  set shelter-radius 100
 
   set arrived-count 0
-  set log-file "data/prophet_log.csv"
-  set ok-done? false
+  set event-log-file "data/prophet_event_log.csv"
+  set decision-log-file "data/prophet_decision_log.csv"
+  set done? false
 end
 
 ;-------------初期化---------------
@@ -41,23 +48,40 @@ to setup
   clear-all
   init-globals
   setup-map
-
+  setup-shelter
   setup-nodes
+  setup-blackholes
   setup-messages
-
   init-log-file
   reset-ticks
 end
 
 ;マップの初期化
 to setup-map
-  ;resize-world -500 500 -500 500
+  ;resize-world -350 350 -350 350
   set-patch-size 1 ;1パッチ = 1m
+end
+
+to setup-shelter
+  ask patches [
+    set shelter? false
+  ]
+
+  set shelter-patch one-of patches with[pxcor = 100 and pycor = 100]
+
+  ask patches [
+    if distance shelter-patch <= shelter-radius [
+      set shelter? true
+      set pcolor orange
+    ]
+  ]
+
+  ask shelter-patch [ set pcolor white ]
 end
 
 ;ノードの初期化
 to setup-nodes
-  create-turtles NUM-NODES [
+  create-turtles num-nodes [
     set shape "circle"
     set color blue
     set size 10
@@ -65,61 +89,64 @@ to setup-nodes
     set node-id who
     set msg-cnt 0
     set p-table table:make
-    table:put p-table node-id 1.0  ;自分自身への到達確率は1.0
-    set trust-table table:make
+    table:put p-table node-id 1.0  ;自分自身への到達確率を1.0に設定
     set buffer []
-    set l-buffer LIMIT-BUFFER
     set delivered-list []
     set forwarded-list []
-
-    set black-hole? false
+    set evacuee? false
+    set blackhole? false
     set label node-id
     set label-color white
   ]
+
+  let num-evacuees round (num-nodes * (evacuee-rate / 100))
+  ask n-of num-evacuees turtles [ set evacuee? true ]
 end
 
-;メッセージの生成
+;メッセージの生成（初期時）
 to setup-messages
-  ask n-of 4 turtles [
+  ;ブラックホールノードではない集合
+  let not-blackholes turtles with [not blackhole?]
+
+  ask n-of messages not-blackholes [
     set msg-cnt msg-cnt + 1
     let msg-id (word node-id "-" msg-cnt)
     let src-id node-id
-    let dst-id [node-id] of one-of other turtles
-    let ttl TTL-HOPS
-    ask turtle dst-id [ set color yellow]
+    let dst-id [node-id] of one-of other not-blackholes
+    let ttl ttl-hops
+
+    ask turtle dst-id [ set color yellow ]
     set buffer lput (list msg-id src-id dst-id ttl) buffer
     set color brown
-    show (word "Message generated " src-id " to " dst-id)
-    show (word "Message TTL (hops)" ttl)
   ]
 end
 
 ;ブラックホールノードの設定
-to setup-black-hole
-  ask n-of 1 turtles [
-    set black-hole? true
-    set shape "triangle"
+to setup-blackholes
+  let num-blackholes round (num-nodes * (blackhole-rate / 100))
+
+  ask n-of num-blackholes turtles [
+    set blackhole? true
+    set color gray
   ]
 end
 
 ;ログファイル初期化
 to init-log-file
   ;file-deleteが失敗する場合があるので、念のためfile-close
-  if file-exists? log-file [
-    file-close
-  ]
+  file-close-all
+
   ;ログファイルおよびヘッダの出力
-  file-delete log-file
-  file-open log-file
-  let header "ticks,msg-id,src-id,dst-id,ttl,sender,receiver,sender-p,receiver-p,event"
-  file-print header
-  file-close
+  let event-header "ticks,msg-id,src-id,dst-id,ttl,sender,receiver,sender-p,receiver-p,event"
+  init-file event-log-file event-header
+
+  let decision-header "ticks,msg-id,src-id,dst-id,ttl,sender,receiver,sender-p,receiver-p,receiver-trust,p-plus-pass?,blackhole-receiver?,transfer-outcome"
+  init-file decision-log-file decision-header
 end
 
 ;----------------メインループ---------------
 to go
-  ;show (word "--------" ticks "-------------")
-  if ok-done? [stop]
+  ;if ticks = 100 [stop]
   move-nodes
   update-links
   forward-messages
@@ -132,7 +159,8 @@ end
 to update-links
   ;通信範囲外のリンクを削除
   ask links [
-    if link-length > COMM-RANGE [
+    if link-length > comm-range [
+      ;リンクが切れるタイミングで、重複処理のリストをクリアにする
       cleanup-forwarded-list end1 end2
       die
     ]
@@ -140,13 +168,14 @@ to update-links
 
   ;通信範囲内のリンクを作成
   ask turtles [
-    let nearby other turtles in-radius COMM-RANGE
+    let nearby other turtles in-radius comm-range
     ask nearby [
       let a myself
       let b self
       if not link-neighbor? myself [
         create-link-with myself [ set color gray ]
         ;リンクが形成されたタイミング
+        ;到達確率の更新
         update-encounter a b
         update-transitivity a b
       ]
@@ -154,142 +183,181 @@ to update-links
   ]
 end
 
-;転送処理
 to forward-messages
-  ;各ノード（送信側）をループ
-  ask turtles [
+  ;ブラックホールノードではない集合
+  let not-blackholes turtles with [not blackhole?]
+
+  ;ブラックホールノードは転送しない事を前提としている
+  ;ブラックホールではないノード（送信側）をループ
+  ask not-blackholes [
     let sender self
 
-    ;送信側bufferをループ
+    ;送信側のbufferをループ
     foreach buffer [
       msg ->
-      let msg-id item 0 msg
-      let src-id item 1 msg
-      let dst-id item 2 msg
-      let ttl item 3 msg
-
-      let send-msg replace-item 3 msg (ttl - 1)
-      ;送信判定（TTL > 0）
-      let ok-forward-msg? false
-      if ttl > 0 [set ok-forward-msg? true]
-
       ;隣接ノード（受信候補）をループ
       ask link-neighbors [
-        let receiver self
-
-        let sender-p (get-p ([p-table] of sender) dst-id)  ;送信者側の宛先までの到達確率
-        let receiver-p (get-p ([p-table] of receiver) dst-id) ;受信者側の宛先までの到達確率
-
-        if (sender-p < receiver-p) and ok-forward-msg? [
-          if (not member? (list msg-id ([node-id] of receiver)) ([forwarded-list] of sender)) and (empty? filter [m -> item 0 m = msg-id] ([buffer] of receiver))[
-
-            ifelse ([node-id] of receiver) = dst-id [
-              if not member? msg-id ([delivered-list] of receiver) [
-                ;受信側のリストに追加
-                set delivered-list lput msg-id delivered-list
-                set arrived-count arrived-count + 1
-                set color red
-
-                show (word "--------" ticks " ticks-------------")
-                show (word "Message arrived")
-                show (word  "msg-id=" msg-id
-                      " ttl=" item 3 send-msg
-                      " from=" [node-id] of myself
-                      " to=" node-id)
-                show (word "buffer: " buffer)
-                show (word "delivered:" delivered-list)
-                log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "ARRIVED"
-
-                if arrived-count = 4 [
-                  stop-simulation
-                ]
-
-              ]
-              
-            ] [
-              ;bufferに追加する
-              set buffer lput send-msg buffer
-              set color green
-
-              ;送信側のリストに追加
-              ask sender [set forwarded-list lput (list msg-id ([node-id] of receiver)) forwarded-list]
-
-              show (word "--------" ticks " ticks-------------")
-              show (word "msg-id=" msg-id
-                        " ttl=" item 3 send-msg
-                        " from=" [node-id] of myself
-                        " to=" node-id
-                        " sender-p=" sender-p
-                        " receiver-p=" receiver-p)
-              show (word "buffer: " buffer)
-
-              log-event msg-id src-id dst-id ttl ([node-id] of sender) node-id sender-p receiver-p "FORWARDED"
-            ]
-
-            let m-count get-trust trust-table ([node-id] of sender)
-            set m-count m-count + 1
-            set-trust trust-table ([node-id] of sender) m-count
-
-          ]
-        ]
-
+        handle-message-transfer sender self msg
       ]
-
     ]
-
   ]
 end
 
-to stop-simulation
-  if file-exists? log-file [
-    file-close
+to handle-message-transfer [sender receiver msg]
+  ;メッセージの要素を取り出す
+  let msg-id item 0 msg
+  let src-id item 1 msg
+  let dst-id item 2 msg
+  let ttl item 3 msg
+
+  let send-msg replace-item 3 msg (ttl - 1)
+
+  let sender-id [node-id] of sender
+  let receiver-id [node-id] of receiver
+  let sender-p (get-p ([p-table] of sender) dst-id)  ;送信者側の宛先までの到達確率
+  let receiver-p (get-p ([p-table] of receiver) dst-id) ;受信者側の宛先までの到達確率
+  let receiver-trust 0
+
+  let ttl-ok? (ttl > 0)
+  let is-not-forwarded (not member? (list msg-id receiver-id) ([forwarded-list] of sender))
+  let is-not-in-buffer (empty? filter [m -> item 0 m = msg-id] ([buffer] of receiver))
+  let blackhole-receiver? [blackhole?] of receiver
+  let p-improved? (sender-p < receiver-p)
+
+  if p-improved? and ttl-ok? and is-not-forwarded and is-not-in-buffer [
+    ifelse receiver-id = dst-id [
+      ;宛先ノードへの到達処理
+      process-delivery sender receiver msg-id src-id dst-id ttl sender-p receiver-p receiver-trust blackhole-receiver?
+    ] [
+      ;中継ノードへの転送処理
+      process-relay sender receiver send-msg msg-id src-id dst-id ttl sender-p receiver-p receiver-trust blackhole-receiver?
+    ]
   ]
-  
+end
+
+;メッセージの宛先到達処理
+to process-delivery [sender receiver msg-id src-id dst-id ttl sender-p receiver-p receiver-trust blackhole-receiver?]
+
+  if not member? msg-id ([delivered-list] of receiver) [
+    let sender-id [node-id] of sender
+    let receiver-id [node-id] of receiver
+
+    ;受信側のリストに追加
+    ask receiver [
+      set delivered-list lput msg-id delivered-list
+      set color red
+    ]
+
+    set arrived-count arrived-count + 1
+
+    log-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p "ARRIVED"
+
+    let p-plus-pass? false
+    log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? "Delivered"
+  ]
+end
+
+;中継ノード転送処理
+to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p receiver-p receiver-trust blackhole-receiver?]
+  let sender-id [node-id] of sender
+  let receiver-id [node-id] of receiver
+  let p-plus-pass? false
+  let transfer-outcome "Failed"
+
+  ifelse not blackhole-receiver? [
+    ask receiver [
+      ;bufferの末尾に追加する
+      set buffer lput send-msg buffer
+      set color green
+    ]
+    log-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p "FORWARDED"
+    set transfer-outcome "Transfer"
+  ] [
+    ;ブラックホールノードへの転送
+    set transfer-outcome "BH_Transfer"
+  ]
+
+  ;送信側の転送済みリストに追加
+  ask sender [
+    let temp (list msg-id receiver-id)
+    set forwarded-list lput temp forwarded-list
+  ]
+
+  log-decision-event msg-id src-id dst-id ttl sender-id receiver-id sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome
+end
+
+to stop-simulation
+  file-close-all
   ;シミュレーション停止
-  set ok-done? true
+  set done? true
+end
+
+to init-file [file-name header]
+  file-delete file-name
+  file-open file-name
+  file-print header
+  file-close
 end
 
 to cleanup-buffer
   ask turtles [
     ;TTL=0の削除
     set buffer filter [msg -> item 3 msg > 0] buffer
-    ;FIFOの制限
-    while [length buffer > l-buffer] [
+    ;FIFOを適用
+    while [length buffer > buffer-limit] [
       set buffer remove-item 0 buffer
     ]
   ]
 end
 
-;ログの出力
+;イベントログの出力
 to log-event [msg-id src-id dst-id ttl sender receiver sender-p receiver-p event]
-  file-open log-file
+  file-open event-log-file
   file-print (word ticks "," msg-id "," src-id "," dst-id "," ttl "," sender "," receiver "," sender-p "," receiver-p "," event)
+  file-close
+end
+
+to log-decision-event [msg-id src-id dst-id ttl sender receiver sender-p receiver-p receiver-trust p-plus-pass? blackhole-receiver? transfer-outcome]
+  file-open decision-log-file
+  file-print (word ticks "," msg-id "," src-id "," dst-id "," ttl "," sender "," receiver "," sender-p "," receiver-p "," receiver-trust "," p-plus-pass? "," blackhole-receiver? "," transfer-outcome)
+  file-close
 end
 
 to cleanup-forwarded-list [a b]
   ask a [
-    set forwarded-list filter [m -> item 1 m != [node-id] of b] forwarded-list
+    set forwarded-list filter [msg -> item 1 msg != [node-id] of b] forwarded-list
   ]
   ask b [
-    set forwarded-list filter [m -> item 1 m != [node-id] of a] forwarded-list
+    set forwarded-list filter [msg -> item 1 msg != [node-id] of a] forwarded-list
   ]
 end
 
 to move-nodes
   ask turtles [
-    rt random 50 - random 50
-    fd 1.0 + random-float 0.5  ; 1.0～1.5 m
-    if xcor > max-pxcor [
-      rt 180
-    ]
-    if xcor < min-pxcor [
-      rt 180
-    ]
-    if ycor > max-pycor [
-      rt 180
-    ]
-    if ycor < min-pycor [
-      rt 180
+    ifelse evacuee? [
+      ifelse [shelter?] of patch-here [
+        rt random 50 - random 50
+
+        fd 0.5 + random-float 0.5
+
+        if not[shelter?] of patch-here [
+          bk 1.0 + random-float 0.5
+          face shelter-patch
+          rt random 20 - random 10
+        ]
+
+      ] [
+        face shelter-patch
+        fd 0.5 + random-float 0.5
+      ]
+
+    ] [
+      rt random 50 - random 50
+      fd 1.0 + random-float 0.5  ; 1.0～1.5 m
+      if xcor > max-pxcor [ rt 180 ]
+      if xcor < min-pxcor [ rt 180 ]
+      if ycor > max-pycor [ rt 180 ]
+      if ycor < min-pycor [ rt 180 ]
     ]
   ]
 end
@@ -302,17 +370,6 @@ end
 
 ;node-id(key)と到達確率(value)を設定
 to set-p [table key value]
-  table:put table key value
-end
-
-;node-id(key)の信頼度を取得
-to-report get-trust [table key]
-  let value table:get-or-default table key 0
-  report value
-end
-
-;node-id(key)と信頼度(value)を設定
-to set-trust [table key value]
   table:put table key value
 end
 
@@ -334,7 +391,7 @@ to update-encounter[a b]
   ]
 end
 
-;リンクが形成されていないノードに適用
+;リンクが存在しないノードのみに適用
 ;P(A,B) = P(A,B)old ∗ (γ＾k)
 ;k＝1 (1tick)
 to aging
@@ -357,13 +414,11 @@ to aging
 end
 
 ;リンク形成時に適用
-;直接会ったことのないノード間の到達確率の更新
 ;P(A,C) = P(A,C)old + (1 − P(A,C)old) ∗ P(A,B) ∗ P(B,C) ∗ β
 to update-transitivity [a b]
   ask a [
     let p-ab (get-p p-table [node-id] of b)
     let keys table:keys ([p-table] of b)
-
     foreach keys [
       key ->
       if key != node-id and key != [node-id] of b [
@@ -374,7 +429,6 @@ to update-transitivity [a b]
         set-p p-table key p-new
       ]
     ]
-
   ]
 
   ask b [
@@ -394,10 +448,10 @@ to update-transitivity [a b]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-274
-16
-683
-426
+312
+10
+1021
+720
 -1
 -1
 1.0
@@ -410,10 +464,10 @@ GRAPHICS-WINDOW
 0
 0
 1
--200
-200
--200
-200
+-350
+350
+-350
+350
 0
 0
 1
@@ -421,10 +475,10 @@ ticks
 30.0
 
 BUTTON
-59
-270
-123
-303
+62
+371
+126
+404
 NIL
 setup
 NIL
@@ -438,10 +492,10 @@ NIL
 1
 
 BUTTON
-164
-272
-227
-305
+165
+371
+228
+404
 NIL
 go
 T
@@ -463,7 +517,7 @@ num-nodes
 num-nodes
 10
 100
-59.0
+100.0
 1
 1
 NIL
@@ -476,10 +530,10 @@ SLIDER
 55
 comm-range
 comm-range
-1
+10
 100
 55.0
-1
+5
 1
 NIL
 HORIZONTAL
@@ -493,7 +547,7 @@ ttl-hops
 ttl-hops
 0
 100
-5.0
+15.0
 1
 1
 NIL
@@ -504,26 +558,71 @@ SLIDER
 164
 232
 197
-limit-buffer
-limit-buffer
-3
-100
-9.0
+buffer-limit
+buffer-limit
+1
+messages
+20.0
 1
 1
 NIL
 HORIZONTAL
 
 MONITOR
-94
-211
-192
-256
+98
+434
+196
+479
 到達したメッセージ
 arrived-count
 17
 1
 11
+
+SLIDER
+59
+212
+231
+245
+messages
+messages
+1
+num-nodes
+20.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+59
+263
+231
+296
+blackhole-rate
+blackhole-rate
+0
+70
+20.0
+5
+1
+%
+HORIZONTAL
+
+SLIDER
+60
+306
+232
+339
+evacuee-rate
+evacuee-rate
+0
+100
+50.0
+5
+1
+%
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
