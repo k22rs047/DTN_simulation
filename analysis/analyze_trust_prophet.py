@@ -17,7 +17,7 @@ delivery_ratio = len(delivered_count) / total_messages
 print("配信率：" + str(delivery_ratio))
 
 #メッセージの転送
-successful_transfers = ['Delivered', 'Low_Trust_Transfer', 'BH_Transfer', 'Trust_Transfer']
+successful_transfers = ['Delivered', 'Low_Trust_Transfer', 'BH_Transfer', 'Trust_Transfer', 'Transfer']
 
 #転送したメッセージの数
 total_transfers = df[df['transfer-outcome'].isin(successful_transfers)].shape[0]
@@ -25,7 +25,7 @@ print("総転送回数：" + str(total_transfers))
 
 
 #提案手法の閾値によって転送しなかった回数
-failed_transfers = df[(df['transfer-outcome'] == 'Failed') & (df['p-plus-pass?'] == False)].shape[0]
+failed_transfers = df[(df['transfer-outcome'] == 'Failed')].shape[0]
 #すべての転送機会
 total_transfer_opportunities = df.shape[0]
 #抑制率

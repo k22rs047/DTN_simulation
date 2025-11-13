@@ -225,6 +225,7 @@ to handle-message-transfer [sender receiver msg]
 
   let ttl-ok? (ttl > 0)
   let is-not-forwarded (not member? (list msg-id receiver-id) ([forwarded-list] of sender))
+  ;is-not-in-bufferは、サマリーベクターを調べている(疑似的に)
   let is-not-in-buffer (empty? filter [m -> item 0 m = msg-id] ([buffer] of receiver))
   let blackhole-receiver? [blackhole?] of receiver
   let p-improved? (sender-p < receiver-p)
@@ -295,6 +296,7 @@ to process-relay [sender receiver send-msg msg-id src-id dst-id ttl sender-p rec
       set transfer-outcome "Trust_Transfer"
     ] [
       ;ブラックホールノードへの転送
+      ;bufferに追加しないことでシミュレーションが重くなるのを防ぐ
       set transfer-outcome "BH_Transfer"
     ]
 

@@ -19,6 +19,7 @@ print("各実験の平均を求める:")
 print("実験回数" + str(len(df)) + "回:")
 #print(average_values.rename(name_mapping))
 
+#有効数字3桁に整えるメソッド
 def sig_digits(x, n):
     #xの桁数を取得する
     import math
@@ -28,6 +29,7 @@ def sig_digits(x, n):
       digits=math.floor(math.log10(abs(x)))+1
       #n桁に丸める
       return round(x, -digits+n)
+
 
 sig_digits_num = 3
 formatted_dict = {}
@@ -60,5 +62,8 @@ if file_exists:
     else:
         #追記
         df.to_csv(output_path, mode='a', header=False, index=False)
+
+#上書きモードで削除
+open(read_path, 'w')
 
 print("---------------------------------------")

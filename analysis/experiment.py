@@ -3,7 +3,8 @@ import pynetlogo
 import subprocess
 
 netlogo = pynetlogo.NetLogoLink(
-    gui = True,
+    #実験時はFalseにする(実行速度を早くするため)
+    gui = False,
 )
 
 #モデル読み込み
@@ -19,10 +20,10 @@ para_map = {
     'p-plus' : '0',
     'blackhole-rate' : '0',
     'evacuee-rate' : '50',
-    'history-limit' : '5'
+    'history-limit' : '20'
 }
 
-#パラメータの設定
+#パラメータの設定（NetLogo上でのコマンド）
 for name, value in para_map.items():
     observer_cmd = "set " + name + " " + value
     netlogo.command(observer_cmd)
@@ -30,8 +31,8 @@ for name, value in para_map.items():
 #実験に利用する値
 #一回の実験でモデルを実行する回数
 experiment_num = 10
-ticks_limit = 100
-cmd_analysis = 'python analysis_trust_prophet.py'
+ticks_limit = 1500
+cmd_analysis = 'python analyze_trust_prophet.py'
 cmd_average = 'python analyze_results.py'
 
 #実験の実行
@@ -45,10 +46,10 @@ def run_experiment(experiment_num):
 
 #対照実験用のパラメータ
 v_name = 'blackhole-rate'
-experiment_list = [0, 10, 20, 30, 40]
+experiment_list = [80, 10, 20, 30, 40]
 
 for para in experiment_list:
-    netlogo.command("set " + v_name + " " + para)
+    netlogo.command("set " + v_name + " " + str(para))
     run_experiment(experiment_num)
 
 #シミュレーターの停止
